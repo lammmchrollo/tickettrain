@@ -79,16 +79,16 @@ const Card = ({ children, style = {}, onClick }) => (
 
 // ─── Header ──────────────────────────────────────────────────────
 const Header = ({ title, sub, back, right }) => (
-  <div style={{ background:GRAD, padding:'48px 24px 24px', position:'sticky', top:0, zIndex:10 }}>
-    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+  <div style={{ background:GRAD, padding:'calc(env(safe-area-inset-top) + 8px) 20px 12px', position:'sticky', top:0, zIndex:10, boxShadow:'0 2px 10px rgba(0,0,0,0.1)' }}>
+    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
       {back && (
-        <button onClick={back} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:'50%', width:40, height:40, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-          <ChevronLeft size={22} color="white" />
+        <button onClick={back} style={{ background:'rgba(255,255,255,0.15)', border:'none', borderRadius:'10px', width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+          <ChevronLeft size={20} color="white" />
         </button>
       )}
       <div style={{ flex:1 }}>
-        <div style={{ color:'white', fontSize:20, fontWeight:700 }}>{title}</div>
-        {sub && <div style={{ color:'rgba(255,255,255,0.8)', fontSize:13 }}>{sub}</div>}
+        <div style={{ color:'white', fontSize:18, fontWeight:700, letterSpacing:'-0.5px' }}>{title}</div>
+        {sub && <div style={{ color:'rgba(255,255,255,0.7)', fontSize:12 }}>{sub}</div>}
       </div>
       {right}
     </div>
@@ -177,16 +177,16 @@ function LoginScreen({ navigate, setUser }) {
   return (
     <div style={{ minHeight:'100vh', background:BG }}>
       <Toast toast={toast} />
-      <div style={{ background:GRAD, padding:'60px 24px 80px', textAlign:'center', position:'relative', overflow:'hidden' }}>
-        <div style={{ position:'absolute', top:-40, right:-40, width:160, height:160, background:'rgba(255,255,255,0.08)', borderRadius:'50%' }} />
-        <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'50%', padding:20, display:'inline-block', marginBottom:16 }}>
-          <Train size={48} color="white" strokeWidth={2} />
+      <div style={{ background:GRAD, padding:'calc(env(safe-area-inset-top) + 24px) 24px 50px', textAlign:'center', position:'relative', overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:-40, right:-40, width:140, height:140, background:'rgba(255,255,255,0.08)', borderRadius:'50%' }} />
+        <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'20px', padding:16, display:'inline-block', marginBottom:12 }}>
+          <Train size={36} color="white" strokeWidth={2.5} />
         </div>
-        <div style={{ fontSize:28, fontWeight:800, color:'white', marginBottom:4 }}>Vé Tàu Bắc Nam</div>
-        <div style={{ color:'rgba(255,255,255,0.85)', fontSize:14 }}>Đăng nhập để đặt vé dễ dàng</div>
+        <div style={{ fontSize:24, fontWeight:800, color:'white', marginBottom:2, letterSpacing:'-0.5px' }}>Vé Tàu Bắc Nam</div>
+        <div style={{ color:'rgba(255,255,255,0.8)', fontSize:13 }}>Đăng nhập để đặt vé dễ dàng</div>
       </div>
-      <div style={{ padding:'0 24px', marginTop:-32 }}>
-        <Card style={{ marginBottom:20 }}>
+      <div style={{ padding:'0 20px', marginTop:-25 }}>
+        <Card style={{ marginBottom:20, borderRadius:20 }}>
           <div style={{ fontSize:22, fontWeight:700, color:'#111827', marginBottom:20 }}>Đăng nhập</div>
           <div style={{ marginBottom:16 }}>
             <label style={{ fontSize:13, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Email</label>
@@ -232,16 +232,15 @@ function HomeScreen({ navigate, user }) {
   return (
     <div style={{ minHeight:'100vh', background:BG, paddingBottom:80 }}>
       {/* Header */}
-      <div style={{ background:GRAD, padding:'48px 24px 100px', position:'relative', overflow:'hidden' }}>
-        <div style={{ position:'absolute', top:-32, right:-32, width:160, height:160, background:'rgba(255,255,255,0.06)', borderRadius:'50%' }} />
-        <div style={{ position:'absolute', bottom:-24, left:-24, width:120, height:120, background:'rgba(255,255,255,0.06)', borderRadius:'50%' }} />
-        <div style={{ fontSize:24, fontWeight:800, color:'white', marginBottom:4 }}>Xin chào! 👋</div>
-        <div style={{ color:'rgba(255,255,255,0.85)', fontSize:14 }}>Bạn muốn đi đâu hôm nay?</div>
+      <div style={{ background:GRAD, padding:'calc(env(safe-area-inset-top) + 20px) 24px 60px', position:'relative', overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:-20, right:-20, width:120, height:120, background:'rgba(255,255,255,0.06)', borderRadius:'50%' }} />
+        <div style={{ fontSize:22, fontWeight:800, color:'white', marginBottom:2, letterSpacing:'-0.5px' }}>Xin chào! 👋</div>
+        <div style={{ color:'rgba(255,255,255,0.8)', fontSize:13 }}>Bạn muốn đi đâu hôm nay?</div>
       </div>
 
-      <div style={{ padding:'0 16px', marginTop:-76 }}>
+      <div style={{ padding:'0 16px', marginTop:-45 }}>
         {/* Search Card */}
-        <Card style={{ marginBottom:20 }}>
+        <Card style={{ marginBottom:20, borderRadius:20 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, fontWeight:700, fontSize:16, color:'#111827', marginBottom:16 }}>
             <MapPin size={18} color={P} /> Tìm chuyến tàu
           </div>
@@ -573,7 +572,7 @@ function TrainDetailScreen({ navigate, back, selectedTrain, searchData }) {
 
   return (
     <div style={{ minHeight:'100vh', background:BG, paddingBottom:100 }}>
-      <div style={{ background:GRAD, padding:'48px 24px 32px', position:'relative', overflow:'hidden' }}>
+      <div style={{ background:GRAD, padding:'calc(env(safe-area-inset-top) + 12px) 24px 32px', position:'relative', overflow:'hidden' }}>
         <div style={{ position:'absolute', top:-40, right:-40, width:160, height:160, background:'rgba(255,255,255,0.07)', borderRadius:'50%' }}/>
         <button onClick={back} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:'50%', width:40, height:40, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', marginBottom:16 }}>
           <ChevronLeft size={22} color="white"/>
@@ -722,20 +721,19 @@ function SeatSelectionScreen({ navigate, back, carriage, selectedTrain, searchDa
   return (
     <div style={{ minHeight:'100vh', background:BG, paddingBottom:160 }}>
       <Toast toast={toast}/>
-      <div style={{ background:GRAD, padding:'48px 24px 20px', position:'sticky', top:0, zIndex:20 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
-          <button onClick={back} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:'50%', width:40, height:40, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-            <ChevronLeft size={22} color="white"/>
+      <div style={{ background:GRAD, padding:'calc(env(safe-area-inset-top) + 12px) 20px 24px', position: 'sticky', top: 0, zIndex: 20 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
+          <button onClick={back} style={{ background:'rgba(255,255,255,0.15)', border:'none', borderRadius:'10px', width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+            <ChevronLeft size={20} color="white"/>
           </button>
-          <div><div style={{ color:'white', fontSize:18, fontWeight:700 }}>Chọn chỗ ngồi</div><div style={{ color:'rgba(255,255,255,0.8)', fontSize:12 }}>{c.type}</div></div>
+          <div><div style={{ color:'white', fontSize:17, fontWeight:700 }}>Chọn chỗ ngồi</div><div style={{ color:'rgba(255,255,255,0.7)', fontSize:11 }}>{c.type}</div></div>
         </div>
-        <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:14, padding:14, display:'flex', alignItems:'center', gap:12 }}>
-          <Clock size={20} color="white"/>
+        <div style={{ background:'rgba(255,255,255,0.1)', borderRadius:12, padding:'10px 14px', display:'flex', alignItems:'center', gap:10 }}>
+          <Clock size={18} color="white"/>
           <div style={{ flex:1 }}>
-            <div style={{ color:'rgba(255,255,255,0.8)', fontSize:12 }}>Thời gian giữ chỗ</div>
-            <div style={{ color:'white', fontSize:24, fontWeight:800, fontFamily:'monospace' }}>{fmtTime(timeLeft)}</div>
+            <div style={{ color:'rgba(255,255,255,0.7)', fontSize:11 }}>Thời gian giữ chỗ</div>
+            <div style={{ color:'white', fontSize:20, fontWeight:800, fontFamily:'monospace' }}>{fmtTime(timeLeft)}</div>
           </div>
-          <AlertCircle size={20} color="#fde047"/>
         </div>
       </div>
 
@@ -1400,7 +1398,14 @@ function BottomNav({ screen, navigate }) {
     { id:'profile', icon:User, label:'Cá nhân' },
   ];
   return (
-    <div style={{ background:'white', borderTop:'1px solid #e5e7eb', padding:'6px 0 10px', boxShadow:'0 -4px 16px rgba(0,0,0,0.06)', zIndex:100 }}>
+    <div style={{
+      background:'white',
+      borderTop:'1px solid #e5e7eb',
+      padding:`8px 0 calc(env(safe-area-inset-bottom) + 8px)`,
+      boxShadow:'0 -4px 16px rgba(0,0,0,0.06)',
+      zIndex:100,
+      position: 'relative'
+    }}>
       <div style={{ display:'flex', justifyContent:'space-around' }}>
         {items.map(({id,icon:Icon,label})=>{
           const active=screen===id;
@@ -1481,9 +1486,9 @@ export default function App() {
   };
 
   return (
-    <div style={{ display:'flex', justifyContent:'center', alignItems:'flex-start', minHeight:'100vh', background:'#f1f5f9', padding:'0' }}>
-      <div style={{ width:'100%', maxWidth:430, minHeight:'100vh', background:'white', display:'flex', flexDirection:'column', boxShadow:'0 0 60px rgba(0,0,0,0.15)', position:'relative' }}>
-        <div style={{ flex:1, overflowY:'auto', overflowX:'hidden' }}>
+    <div style={{ display:'flex', justifyContent:'center', height:'100vh', height:'100svh', background:'#f1f5f9', overflow:'hidden' }}>
+      <div style={{ width:'100%', maxWidth:430, height:'100%', background:'white', display:'flex', flexDirection:'column', boxShadow:'0 0 60px rgba(0,0,0,0.15)', position:'relative', overflow:'hidden' }}>
+        <div style={{ flex:1, overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling: 'touch' }}>
           {renderScreen()}
         </div>
         {showNav && <BottomNav screen={screen} navigate={navigate}/>}

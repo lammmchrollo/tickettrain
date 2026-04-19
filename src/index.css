@@ -52,18 +52,22 @@
 
 body {
   margin: 0;
+  background: var(--bg);
+  overflow: hidden; /* Ngăn cuộn toàn trang */
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 430px;
   margin: 0 auto;
   text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  height: 100vh; /* Cố định chiều cao bằng màn hình */
+  height: 100svh; /* Hỗ trợ các trình duyệt di động mới */
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
 }
 
 h1,
