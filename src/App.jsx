@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { Preferences } from '@capacitor/preferences';
+import axios from 'axios';
 import {
   Search, Ticket, Clock, Gift, ChevronRight, MapPin, TrendingUp,
   Headphones, Star, Home, Bell, User, ChevronLeft, Calendar, Users,
@@ -8,6 +10,23 @@ import {
   Info, LogOut, Shield, Settings, HelpCircle, Globe, FileText,
   History, Filter, Eye, EyeOff
 } from "lucide-react";
+
+// Cấu hình API tập trung (An ninh: Sử dụng HTTPS)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.vetau.example.com';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+});
+
+// Interceptor để tự động đính kèm Token vào Header (An ninh)
+api.interceptors.request.use(async (config) => {
+  const { value } = await Preferences.get({ key: 'auth_token' });
+  if (value) {
+    config.headers.Authorization = `Bearer ${value}`;
+  }
+  return config;
+});
 
 const P = '#2563eb';
 const PD = '#1d4ed8';
@@ -126,10 +145,27 @@ const Btn = ({ children, onClick, disabled, style={}, variant='primary' }) => {
 };
 
 // ─── SplashScreen ────────────────────────────────────────────────
-function SplashScreen({ navigate }) {
+function SplashScreen({ navigate, setUser }) {
   useEffect(() => {
-    const t = setTimeout(() => navigate('login'), 2500);
-    return () => clearTimeout(t);
+    const checkAuth = async () => {
+      try {
+        const { value: token } = await Preferences.get({ key: 'auth_token' });
+        const { value: userData } = await Preferences.get({ key: 'user_data' });
+
+        // Giả lập delay để hiển thị thương hiệu
+        setTimeout(() => {
+          if (token && userData) {
+            setUser(JSON.parse(userData));
+            navigate('home');
+          } else {
+            navigate('login');
+          }
+        }, 2500);
+      } catch (e) {
+        setTimeout(() => navigate('login'), 2500);
+      }
+    };
+    checkAuth();
   }, []);
   return (
     <div style={{ height:'100vh', background:GRAD, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:0 }}>
@@ -163,13 +199,26 @@ function LoginScreen({ navigate, setUser }) {
   const [loading, setLoading] = useState(false);
   const [toast, showToast] = useToast();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !pass) { showToast('Vui lòng nhập đầy đủ thông tin', 'error'); return; }
     setLoading(true);
-    setTimeout(() => {
-      setUser({ email, name: email.split('@')[0] });
-      navigate('home');
-    }, 1200);
+
+    try {
+      // Mock API call - To be replaced with: const res = await api.post('/login', { email, pass });
+      setTimeout(async () => {
+        const mockUser = { email, name: email.split('@')[0] };
+        const mockToken = 'mock-jwt-token-' + Date.now();
+
+        await Preferences.set({ key: 'auth_token', value: mockToken });
+        await Preferences.set({ key: 'user_data', value: JSON.stringify(mockUser) });
+
+        setUser(mockUser);
+        navigate('home');
+      }, 1200);
+    } catch (err) {
+      showToast('Đăng nhập thất bại. Kiểm tra lại thông tin.', 'error');
+      setLoading(false);
+    }
   };
 
   const inp = { width:'100%', padding:'14px 14px 14px 48px', background:'#f9fafb', border:'1.5px solid #e5e7eb', borderRadius:12, fontSize:15, outline:'none', boxSizing:'border-box' };
@@ -177,17 +226,17 @@ function LoginScreen({ navigate, setUser }) {
   return (
     <div style={{ minHeight:'100vh', background:BG }}>
       <Toast toast={toast} />
-      <div style={{ background:GRAD, padding:'calc(env(safe-area-inset-top) + 24px) 24px 50px', textAlign:'center', position:'relative', overflow:'hidden' }}>
+      <div style={{ background:GRAD, padding:'calc(env(safe-area-inset-top) + 16px) 24px 40px', textAlign:'center', position:'relative', overflow:'hidden' }}>
         <div style={{ position:'absolute', top:-40, right:-40, width:140, height:140, background:'rgba(255,255,255,0.08)', borderRadius:'50%' }} />
-        <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'20px', padding:16, display:'inline-block', marginBottom:12 }}>
-          <Train size={36} color="white" strokeWidth={2.5} />
+        <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'16px', padding:12, display:'inline-block', marginBottom:12 }}>
+          <Train size={32} color="white" strokeWidth={2.5} />
         </div>
-        <div style={{ fontSize:24, fontWeight:800, color:'white', marginBottom:2, letterSpacing:'-0.5px' }}>Vé Tàu Bắc Nam</div>
-        <div style={{ color:'rgba(255,255,255,0.8)', fontSize:13 }}>Đăng nhập để đặt vé dễ dàng</div>
+        <div style={{ fontSize:22, fontWeight:800, color:'white', marginBottom:2, letterSpacing:'-0.5px' }}>Vé Tàu Bắc Nam</div>
+        <div style={{ color:'rgba(255,255,255,0.8)', fontSize:12 }}>Đăng nhập để đặt vé dễ dàng</div>
       </div>
-      <div style={{ padding:'0 20px', marginTop:-25 }}>
-        <Card style={{ marginBottom:20, borderRadius:20 }}>
-          <div style={{ fontSize:22, fontWeight:700, color:'#111827', marginBottom:20 }}>Đăng nhập</div>
+      <div style={{ padding:'0 20px', marginTop:-20, position:'relative', zIndex:1 }}>
+        <Card style={{ marginBottom:20, borderRadius:20, paddingTop:24 }}>
+          <div style={{ fontSize:20, fontWeight:700, color:'#111827', marginBottom:20, textAlign:'center' }}>Đăng nhập</div>
           <div style={{ marginBottom:16 }}>
             <label style={{ fontSize:13, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Email</label>
             <div style={{ position:'relative' }}>
@@ -210,12 +259,107 @@ function LoginScreen({ navigate, setUser }) {
             {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </Btn>
           <div style={{ textAlign:'center', marginTop:16, fontSize:14, color:'#6b7280' }}>
-            Chưa có tài khoản? <span style={{ color:P, fontWeight:600, cursor:'pointer' }} onClick={()=>navigate('home')}>Đặt vé ngay</span>
+            Chưa có tài khoản? <span style={{ color:P, fontWeight:600, cursor:'pointer' }} onClick={()=>navigate('register')}>Đăng ký ngay</span>
           </div>
         </Card>
         <div style={{ textAlign:'center', fontSize:12, color:'#9ca3af', marginBottom:24 }}>
           Bằng cách đăng nhập, bạn đồng ý với Điều khoản sử dụng của chúng tôi
         </div>
+      </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+// ─── RegisterScreen ──────────────────────────────────────────────
+function RegisterScreen({ navigate, setUser }) {
+  const [form, setForm] = useState({ name: '', email: '', pass: '', confirmPass: '' });
+  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [toast, showToast] = useToast();
+
+  const handleRegister = async () => {
+    const { name, email, pass, confirmPass } = form;
+    if (!name || !email || !pass) { showToast('Vui lòng điền đủ thông tin', 'error'); return; }
+    if (pass !== confirmPass) { showToast('Mật khẩu xác nhận không khớp', 'error'); return; }
+
+    setLoading(true);
+    try {
+      // Mock API call - To be replaced with: const res = await api.post('/register', { name, email, pass });
+      setTimeout(async () => {
+        const mockUser = { name, email };
+        const mockToken = 'mock-register-token-' + Date.now();
+
+        await Preferences.set({ key: 'auth_token', value: mockToken });
+        await Preferences.set({ key: 'user_data', value: JSON.stringify(mockUser) });
+
+        setUser(mockUser);
+        showToast('Đăng ký thành công!');
+        navigate('home');
+      }, 1500);
+    } catch (err) {
+      showToast('Lỗi đăng ký. Vui lòng thử lại sau.', 'error');
+      setLoading(false);
+    }
+  };
+
+  const inp = { width:'100%', padding:'14px 14px 14px 48px', background:'#f9fafb', border:'1.5px solid #e5e7eb', borderRadius:12, fontSize:15, outline:'none', boxSizing:'border-box' };
+
+  return (
+    <div style={{ minHeight:'100vh', background:BG }}>
+      <Toast toast={toast} />
+      <div style={{ background:GRAD, padding:'calc(env(safe-area-inset-top) + 16px) 24px 40px', textAlign:'center', position:'relative', overflow:'hidden' }}>
+        <button onClick={() => navigate('login')} style={{ position:'absolute', left:20, top:'calc(env(safe-area-inset-top) + 16px)', background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', zIndex:10 }}>
+          <ChevronLeft size={20} color="white" />
+        </button>
+        <div style={{ position:'absolute', top:-40, right:-40, width:140, height:140, background:'rgba(255,255,255,0.08)', borderRadius:'50%' }} />
+        <div style={{ background:'rgba(255,255,255,0.15)', borderRadius:'16px', padding:12, display:'inline-block', marginBottom:12 }}>
+          <User size={32} color="white" strokeWidth={2.5} />
+        </div>
+        <div style={{ fontSize:22, fontWeight:800, color:'white', marginBottom:2, letterSpacing:'-0.5px' }}>Tạo tài khoản</div>
+        <div style={{ color:'rgba(255,255,255,0.8)', fontSize:12 }}>Tham gia cùng hàng nghìn hành khách</div>
+      </div>
+      <div style={{ padding:'0 20px', marginTop:-20, position:'relative', zIndex:1 }}>
+        <Card style={{ marginBottom:20, borderRadius:20, paddingTop:24 }}>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ fontSize:13, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Họ và tên</label>
+            <div style={{ position:'relative' }}>
+              <User size={18} color="#9ca3af" style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)' }} />
+              <input style={inp} placeholder="Nguyễn Văn A" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} />
+            </div>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ fontSize:13, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Email</label>
+            <div style={{ position:'relative' }}>
+              <Mail size={18} color="#9ca3af" style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)' }} />
+              <input style={inp} type="email" placeholder="example@email.com" value={form.email} onChange={e=>setForm({...form, email: e.target.value})} />
+            </div>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ fontSize:13, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Mật khẩu</label>
+            <div style={{ position:'relative' }}>
+              <Shield size={18} color="#9ca3af" style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)' }} />
+              <input style={inp} type={showPass?'text':'password'} placeholder="••••••••" value={form.pass} onChange={e=>setForm({...form, pass: e.target.value})} />
+              <button onClick={()=>setShowPass(v=>!v)} style={{ position:'absolute', right:14, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer' }}>
+                {showPass ? <EyeOff size={18} color="#9ca3af"/> : <Eye size={18} color="#9ca3af"/>}
+              </button>
+            </div>
+          </div>
+          <div style={{ marginBottom:24 }}>
+            <label style={{ fontSize:13, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Xác nhận mật khẩu</label>
+            <div style={{ position:'relative' }}>
+              <CheckCircle2 size={18} color="#9ca3af" style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)' }} />
+              <input style={inp} type={showPass?'text':'password'} placeholder="••••••••" value={form.confirmPass} onChange={e=>setForm({...form, confirmPass: e.target.value})} />
+            </div>
+          </div>
+          <Btn onClick={handleRegister} disabled={loading}>
+            {loading ? <div style={{ width:20, height:20, border:'2px solid white', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }}/> : null}
+            {loading ? 'Đang xử lý...' : 'Đăng ký ngay'}
+          </Btn>
+          <div style={{ textAlign:'center', marginTop:16, fontSize:14, color:'#6b7280' }}>
+            Đã có tài khoản? <span style={{ color:P, fontWeight:600, cursor:'pointer' }} onClick={()=>navigate('login')}>Đăng nhập</span>
+          </div>
+        </Card>
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
@@ -232,13 +376,13 @@ function HomeScreen({ navigate, user }) {
   return (
     <div style={{ minHeight:'100vh', background:BG, paddingBottom:80 }}>
       {/* Header */}
-      <div style={{ background:GRAD, padding:'calc(env(safe-area-inset-top) + 20px) 24px 60px', position:'relative', overflow:'hidden' }}>
-        <div style={{ position:'absolute', top:-20, right:-20, width:120, height:120, background:'rgba(255,255,255,0.06)', borderRadius:'50%' }} />
+      <div style={{ background:GRAD, padding:'calc(env(safe-area-inset-top) + 16px) 24px 50px', position:'relative', overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:-32, right:-32, width:140, height:140, background:'rgba(255,255,255,0.06)', borderRadius:'50%' }} />
         <div style={{ fontSize:22, fontWeight:800, color:'white', marginBottom:2, letterSpacing:'-0.5px' }}>Xin chào! 👋</div>
-        <div style={{ color:'rgba(255,255,255,0.8)', fontSize:13 }}>Bạn muốn đi đâu hôm nay?</div>
+        <div style={{ color:'rgba(255,255,255,0.8)', fontSize:12 }}>Bạn muốn đi đâu hôm nay?</div>
       </div>
 
-      <div style={{ padding:'0 16px', marginTop:-45 }}>
+      <div style={{ padding:'0 16px', marginTop:-30, position:'relative', zIndex:1 }}>
         {/* Search Card */}
         <Card style={{ marginBottom:20, borderRadius:20 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, fontWeight:700, fontSize:16, color:'#111827', marginBottom:16 }}>
@@ -1338,7 +1482,13 @@ function ProfileScreen({ navigate, back, user={}, setUser }) {
     ]},
   ];
 
-  const logout = () => { setUser(null); navigate('login'); showToast('Đăng xuất thành công'); };
+  const logout = async () => {
+    await Preferences.remove({ key: 'auth_token' });
+    await Preferences.remove({ key: 'user_data' });
+    setUser(null);
+    navigate('login');
+    showToast('Đăng xuất thành công');
+  };
 
   return (
     <div style={{ minHeight:'100vh', background:BG, paddingBottom:80 }}>
@@ -1469,6 +1619,7 @@ export default function App() {
     switch(screen) {
       case 'splash': return <SplashScreen {...p}/>;
       case 'login': return <LoginScreen {...p}/>;
+      case 'register': return <RegisterScreen {...p}/>;
       case 'home': return <HomeScreen {...p}/>;
       case 'search': return <SearchScreen {...p}/>;
       case 'trains': return <TrainListScreen {...p}/>;
