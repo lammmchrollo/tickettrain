@@ -1,5 +1,10 @@
 {
-  "appId": "com.example.app",
+  "appId": "com.getcapacitor.myapp",
   "appName": "vetau-app",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true,
+    "allowNavigation": ["10.0.2.2", "localhost"]
+  }
 }

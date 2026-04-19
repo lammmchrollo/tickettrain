@@ -11,13 +11,31 @@ import {
   History, Filter, Eye, EyeOff
 } from "lucide-react";
 
-// Cấu hình API tập trung (An ninh: Sử dụng HTTPS)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.vetau.example.com';
+// Cấu hình API tự động thích ứng
+const COMPUTER_IP = '192.168.0.101';
+const EMULATOR_IP = '10.0.2.2';
+
+const API_BASE_URL = `http://${EMULATOR_IP}:5000`;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 15000,
 });
+
+// Interceptor để xử lý lỗi kết nối chi tiết
+api.interceptors.response.use(
+  res => res,
+  err => {
+    let msg = 'Lỗi không xác định';
+    if (!err.response) {
+      msg = 'Không thể kết nối tới máy chủ. Vui lòng kiểm tra IP/Mạng.';
+    } else {
+      msg = err.response.data?.message || 'Lỗi hệ thống.';
+    }
+    err.customMessage = msg;
+    return Promise.reject(err);
+  }
+);
 
 // Interceptor để tự động đính kèm Token vào Header (An ninh)
 api.interceptors.request.use(async (config) => {
@@ -204,19 +222,23 @@ function LoginScreen({ navigate, setUser }) {
     setLoading(true);
 
     try {
-      // Mock API call - To be replaced with: const res = await api.post('/login', { email, pass });
-      setTimeout(async () => {
-        const mockUser = { email, name: email.split('@')[0] };
-        const mockToken = 'mock-jwt-token-' + Date.now();
+      const res = await api.post('/login', { email, pass });
 
-        await Preferences.set({ key: 'auth_token', value: mockToken });
-        await Preferences.set({ key: 'user_data', value: JSON.stringify(mockUser) });
+      if (res.data.success) {
+        const { token, user: userData } = res.data;
 
-        setUser(mockUser);
+        // Lưu trữ an toàn vào thiết bị
+        await Preferences.set({ key: 'auth_token', value: token });
+        await Preferences.set({ key: 'user_data', value: JSON.stringify(userData) });
+
+        setUser(userData);
+        showToast('Đăng nhập thành công!');
         navigate('home');
-      }, 1200);
+      }
     } catch (err) {
-      showToast('Đăng nhập thất bại. Kiểm tra lại thông tin.', 'error');
+      console.error('Login error:', err);
+      showToast(err.customMessage || 'Lỗi đăng nhập', 'error');
+    } finally {
       setLoading(false);
     }
   };
@@ -285,20 +307,22 @@ function RegisterScreen({ navigate, setUser }) {
 
     setLoading(true);
     try {
-      // Mock API call - To be replaced with: const res = await api.post('/register', { name, email, pass });
-      setTimeout(async () => {
-        const mockUser = { name, email };
-        const mockToken = 'mock-register-token-' + Date.now();
+      const res = await api.post('/register', { name, email, pass });
 
-        await Preferences.set({ key: 'auth_token', value: mockToken });
-        await Preferences.set({ key: 'user_data', value: JSON.stringify(mockUser) });
+      if (res.data.success) {
+        const { token, user: userData } = res.data;
 
-        setUser(mockUser);
+        await Preferences.set({ key: 'auth_token', value: token });
+        await Preferences.set({ key: 'user_data', value: JSON.stringify(userData) });
+
+        setUser(userData);
         showToast('Đăng ký thành công!');
         navigate('home');
-      }, 1500);
+      }
     } catch (err) {
-      showToast('Lỗi đăng ký. Vui lòng thử lại sau.', 'error');
+      console.error('Register error:', err);
+      showToast(err.customMessage || 'Lỗi đăng ký', 'error');
+    } finally {
       setLoading(false);
     }
   };
