@@ -37,7 +37,7 @@ api.interceptors.response.use(
   }
 );
 
-// Interceptor để tự động đính kèm Token vào Header (An ninh)
+
 api.interceptors.request.use(async (config) => {
   const { value } = await Preferences.get({ key: 'auth_token' });
   if (value) {
