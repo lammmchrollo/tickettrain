@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { Preferences } from '@capacitor/preferences';
 import axios from 'axios';
+import { authApi } from './api/auth.api';
+import { paymentApi } from './api/payment.api';
+import { ticketApi } from './api/ticket.api';
+import { ownerApi } from './api/owner.api';
+import { trainApi } from './api/train.api';
 import {
   Search, Ticket, Clock, Gift, ChevronRight, MapPin, TrendingUp,
   Headphones, Star, Home, Bell, User, ChevronLeft, Calendar, Users,
@@ -222,7 +227,7 @@ function LoginScreen({ navigate, setUser }) {
     setLoading(true);
 
     try {
-      const res = await api.post('/login', { email, pass });
+      const res = await authApi.login({ email, pass });
 
       if (res.data.success) {
         const { token, user: userData } = res.data;
@@ -237,7 +242,7 @@ function LoginScreen({ navigate, setUser }) {
       }
     } catch (err) {
       console.error('Login error:', err);
-      showToast(err.customMessage || 'Lỗi đăng nhập', 'error');
+      showToast(err.message || err.customMessage || 'Lỗi đăng nhập', 'error');
     } finally {
       setLoading(false);
     }
@@ -307,7 +312,7 @@ function RegisterScreen({ navigate, setUser }) {
 
     setLoading(true);
     try {
-      const res = await api.post('/register', { name, email, pass });
+      const res = await authApi.register({ name, email, pass });
 
       if (res.data.success) {
         const { token, user: userData } = res.data;
@@ -321,7 +326,7 @@ function RegisterScreen({ navigate, setUser }) {
       }
     } catch (err) {
       console.error('Register error:', err);
-      showToast(err.customMessage || 'Lỗi đăng ký', 'error');
+      showToast(err.message || err.customMessage || 'Lỗi đăng ký', 'error');
     } finally {
       setLoading(false);
     }
@@ -436,6 +441,7 @@ function HomeScreen({ navigate, user }) {
             { icon:Ticket, label:'Vé của tôi', sc:'myTickets', bg:'#ccfbf1', ic:'#0d9488' },
             { icon:Clock, label:'Lịch sử', sc:'myTickets', bg:'#ffedd5', ic:'#ea580c' },
             { icon:Headphones, label:'Hỗ trợ', sc:'profile', bg:'#ede9fe', ic:'#7c3aed' },
+            { icon:Train, label:'Chủ chuyến', sc:'owners', bg:'#dcfce7', ic:'#16a34a' },
           ].map(a=>(
             <button key={a.label} onClick={()=>navigate(a.sc)} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
               <div style={{ background:a.bg, width:56, height:56, borderRadius:16, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -1101,8 +1107,143 @@ function PassengerInfoScreen({ navigate, back, selectedSeats=[], totalPrice=0, c
   );
 }
 
+// ─── OwnerDashboardScreen ───────────────────────────────────────
+function OwnerDashboardScreen({ navigate, back, user }) {
+  const [owners, setOwners] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ name:'', contactName:'', phone:'', email:'' });
+  const [toast, showToast] = useToast();
+
+  const fetch = async () => {
+    setLoading(true);
+    try {
+      const res = await ownerApi.list();
+      setOwners(res.data.data || []);
+    } catch (err) { showToast(err.message||'Lỗi khi tải danh sách'); }
+    setLoading(false);
+  };
+
+  useEffect(()=>{ fetch(); }, []);
+
+  const handleCreate = async () => {
+    if(!form.name) { showToast('Vui lòng nhập tên chủ','error'); return; }
+    try {
+      const res = await ownerApi.create(form);
+      showToast('Tạo chủ chuyến thành công');
+      setShowCreate(false);
+      setForm({ name:'', contactName:'', phone:'', email:'' });
+      fetch();
+    } catch (err) { showToast(err.message||'Tạo thất bại','error'); }
+  };
+
+  return (
+    <div style={{ minHeight:'100vh', background:BG, paddingBottom:80 }}>
+      <Toast toast={toast} />
+      <Header title="Owner Dashboard" back={back} />
+      <div style={{ padding:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <div style={{ fontSize:16, fontWeight:700 }}>Danh sách chủ chuyến</div>
+          <div style={{ display:'flex', gap:8 }}>
+            <Btn onClick={()=>setShowCreate(true)}>Tạo chủ mới</Btn>
+            <Btn variant="outline" onClick={()=>navigate('createTrain')}>Tạo chuyến</Btn>
+          </div>
+        </div>
+
+        {loading ? <div>Đang tải...</div> : (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {owners.map(o=> (
+              <Card key={o._id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ fontWeight:700 }}>{o.name}</div>
+                  <div style={{ fontSize:13, color:'#6b7280' }}>{o.contactName} · {o.phone}</div>
+                </div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={()=>navigate('createTrain',{ownerId:o._id, ownerName:o.name})} style={{ background:'none', border:'none', color:P, cursor:'pointer', fontWeight:700 }}>Tạo chuyến với chủ này</button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+      </div>
+
+      {showCreate && (
+        <div onClick={()=>setShowCreate(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:50, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:'white', width:420, borderRadius:12, padding:18 }}>
+            <div style={{ fontSize:18, fontWeight:700, marginBottom:12 }}>Tạo chủ chuyến</div>
+            <div style={{ marginBottom:8 }}><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Tên chủ" style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} /></div>
+            <div style={{ display:'flex', gap:8 }}>
+              <input value={form.contactName} onChange={e=>setForm(f=>({...f,contactName:e.target.value}))} placeholder="Người liên hệ" style={{ flex:1, padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} />
+              <input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="SĐT" style={{ width:140, padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} />
+            </div>
+            <div style={{ marginTop:8 }}><input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="Email" style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} /></div>
+            <div style={{ display:'flex', gap:8, marginTop:12 }}>
+              <Btn onClick={handleCreate}>Tạo</Btn>
+              <Btn variant="outline" onClick={()=>setShowCreate(false)}>Hủy</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CreateTrainScreen ─────────────────────────────────────────
+function CreateTrainScreen({ navigate, back, ownerId: initialOwnerId=null, ownerName=null }) {
+  const [form, setForm] = useState({ trainCode:'', trainName:'', trainType:'', fromStationCode:'', toStationCode:'', departureTime:'', arrivalTime:'', durationText:'', ownerId: initialOwnerId });
+  const [owners, setOwners] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [toast, showToast] = useToast();
+
+  useEffect(()=>{ (async()=>{ try{ const res=await ownerApi.list(); setOwners(res.data.data||[]); }catch(e){} })(); }, []);
+
+  const handleCreate = async () => {
+    if(!form.trainCode||!form.trainName||!form.fromStationCode||!form.toStationCode) { showToast('Vui lòng điền các trường bắt buộc','error'); return; }
+    try{
+      const payload = { ...form };
+      const res = await trainApi.create(payload);
+      showToast('Tạo chuyến thành công');
+      navigate('trains');
+    }catch(err){ showToast(err.message||'Tạo chuyến thất bại','error'); }
+  };
+
+  return (
+    <div style={{ minHeight:'100vh', background:BG, paddingBottom:80 }}>
+      <Toast toast={toast}/>
+      <Header title="Tạo chuyến" back={back} />
+      <div style={{ padding:16 }}>
+        <Card style={{ marginBottom:12 }}>
+          <div style={{ marginBottom:8 }}><div style={{ fontSize:13, fontWeight:600 }}>Mã chuyến</div><input value={form.trainCode} onChange={e=>setForm(f=>({...f,trainCode:e.target.value}))} style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} /></div>
+          <div style={{ marginBottom:8 }}><div style={{ fontSize:13, fontWeight:600 }}>Tên chuyến</div><input value={form.trainName} onChange={e=>setForm(f=>({...f,trainName:e.target.value}))} style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} /></div>
+          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+            <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:600 }}>Ga đi</div><input value={form.fromStationCode} onChange={e=>setForm(f=>({...f,fromStationCode:e.target.value}))} style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} /></div>
+            <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:600 }}>Ga đến</div><input value={form.toStationCode} onChange={e=>setForm(f=>({...f,toStationCode:e.target.value}))} style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} /></div>
+          </div>
+          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+            <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:600 }}>Khởi hành</div><input value={form.departureTime} onChange={e=>setForm(f=>({...f,departureTime:e.target.value}))} placeholder="HH:MM" style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} /></div>
+            <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:600 }}>Đến</div><input value={form.arrivalTime} onChange={e=>setForm(f=>({...f,arrivalTime:e.target.value}))} placeholder="HH:MM" style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} /></div>
+          </div>
+          <div style={{ marginBottom:8 }}><div style={{ fontSize:13, fontWeight:600 }}>Thời lượng</div><input value={form.durationText} onChange={e=>setForm(f=>({...f,durationText:e.target.value}))} placeholder="14h 30m" style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }} /></div>
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:13, fontWeight:600 }}>Chủ chuyến</div>
+            <select value={form.ownerId||''} onChange={e=>setForm(f=>({...f,ownerId:e.target.value}))} style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }}>
+              <option value="">-- Chọn chủ --</option>
+              {owners.map(o=> <option key={o._id} value={o._id}>{o.name} ({o.contactName||o.phone||o.email})</option>)}
+            </select>
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:12 }}>
+            <Btn onClick={handleCreate}>Tạo chuyến</Btn>
+            <Btn variant="outline" onClick={back}>Hủy</Btn>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 // ─── PaymentScreen ───────────────────────────────────────────────
-function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passengers=[], carriage, selectedTrain }) {
+function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passengers=[], carriage, selectedTrain, searchData }) {
   const [method, setMethod] = useState('vnpay');
   const [promo, setPromo] = useState('');
   const [discount, setDiscount] = useState(0);
@@ -1123,13 +1264,33 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
     else if(promo) showToast('Mã giảm giá không hợp lệ','error');
   };
 
-  const pay = () => {
-    setLoading(true);
-    setTimeout(()=>{
-      const ok=Math.random()>0.1;
-      if(ok) navigate('paymentSuccess',{selectedSeats,passengers,finalTotal:final,carriage,selectedTrain});
-      else { showToast('Thanh toán thất bại. Vui lòng thử lại!','error'); setLoading(false); }
-    },2000);
+  const pay = async () => {
+    try {
+      setLoading(true);
+      const res = await paymentApi.completeLegacy({
+        selectedTrain,
+        searchData,
+        selectedSeats,
+        passengers,
+        totalPrice,
+        serviceFee: svc,
+        discount,
+        finalTotal: final
+      });
+
+      navigate('paymentSuccess', {
+        selectedSeats,
+        passengers,
+        finalTotal: res.data?.data?.finalTotal || final,
+        carriage,
+        selectedTrain,
+        tickets: res.data?.data?.tickets || []
+      });
+    } catch (error) {
+      showToast(error.message || 'Thanh toán thất bại. Vui lòng thử lại!', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -1204,8 +1365,8 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
 }
 
 // ─── PaymentSuccessScreen ────────────────────────────────────────
-function PaymentSuccessScreen({ navigate, selectedSeats=[], passengers=[], finalTotal=0 }) {
-  const ticketId = `TK${Date.now().toString().slice(-8)}`;
+function PaymentSuccessScreen({ navigate, selectedSeats=[], passengers=[], finalTotal=0, tickets=[] }) {
+  const ticketId = tickets[0]?.ticketCode || `TK${Date.now().toString().slice(-8)}`;
   const [confetti, setConfetti] = useState(true);
 
   useEffect(()=>{ const t=setTimeout(()=>setConfetti(false),3000); return()=>clearTimeout(t); },[]);
@@ -1276,9 +1437,46 @@ function PaymentSuccessScreen({ navigate, selectedSeats=[], passengers=[], final
 }
 
 // ─── MyTicketsScreen ─────────────────────────────────────────────
-function MyTicketsScreen({ navigate, tickets=MOCK_TICKETS }) {
+function MyTicketsScreen({ navigate }) {
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('upcoming');
   const [q, setQ] = useState('');
+  const [toast, showToast] = useToast();
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        setLoading(true);
+        const res = await ticketApi.myTickets();
+        const mapped = (res.data?.data || []).map((t) => ({
+          id: t.ticketCode,
+          trainId: t.trainSnapshot?.trainCode || 'SE',
+          from: t.trainSnapshot?.fromStationCode || '',
+          to: t.trainSnapshot?.toStationCode || '',
+          date: new Date(t.createdAt).toLocaleDateString('vi-VN'),
+          time: t.trainSnapshot?.departureTime || '--:--',
+          seats: [t.seatSnapshot?.seatNumber || '-'],
+          carriageType: t.seatSnapshot?.classType || '-',
+          totalPrice: t.seatSnapshot?.basePrice || 0,
+          status:
+            t.ticketStatus === 'cancelled'
+              ? 'cancelled'
+              : t.ticketStatus === 'used'
+              ? 'completed'
+              : 'upcoming',
+          passengers: [{ name: t.passengerSnapshot?.fullName || 'Hành khách' }]
+        }));
+        setTickets(mapped);
+      } catch (error) {
+        showToast(error.message || 'Không tải được danh sách vé', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    run();
+  }, []);
 
   const statCfg = {
     upcoming:{ label:'Sắp đi', color:'#dbeafe', tc:'#1d4ed8' },
@@ -1295,6 +1493,7 @@ function MyTicketsScreen({ navigate, tickets=MOCK_TICKETS }) {
 
   return (
     <div style={{ minHeight:'100vh', background:BG, paddingBottom:80 }}>
+      <Toast toast={toast}/>
       <div style={{ background:GRAD, padding:'48px 24px 24px' }}>
         <div style={{ fontSize:24, fontWeight:800, color:'white', marginBottom:4 }}>Vé của tôi</div>
         <div style={{ color:'rgba(255,255,255,0.85)', fontSize:14 }}>Quản lý vé tàu của bạn</div>
@@ -1318,7 +1517,9 @@ function MyTicketsScreen({ navigate, tickets=MOCK_TICKETS }) {
       </div>
 
       <div style={{ padding:'14px 16px' }}>
-        {filtered.length===0 ? (
+        {loading ? (
+          <Card style={{ textAlign:'center', color:'#6b7280', fontWeight:600 }}>Đang tải vé...</Card>
+        ) : filtered.length===0 ? (
           <div style={{ textAlign:'center', padding:'60px 0' }}>
             <div style={{ background:'#f3f4f6', borderRadius:'50%', width:80, height:80, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
               <Ticket size={36} color="#9ca3af"/>
@@ -1361,15 +1562,42 @@ function MyTicketsScreen({ navigate, tickets=MOCK_TICKETS }) {
 
 // ─── TicketDetailScreen ──────────────────────────────────────────
 function TicketDetailScreen({ navigate, back, ticket=MOCK_TICKETS[0] }) {
+  const [ticketState, setTicketState] = useState(ticket);
+  const [loadingCancel, setLoadingCancel] = useState(false);
+  const [toast, showToast] = useToast();
+
+  useEffect(() => {
+    setTicketState(ticket);
+  }, [ticket]);
+
   const statCfg = {
     upcoming:{ label:'Sắp đi', bg:'#dbeafe', color:'#1d4ed8' },
     completed:{ label:'Đã hoàn thành', bg:'#dcfce7', color:'#15803d' },
     cancelled:{ label:'Đã hủy', bg:'#fee2e2', color:'#b91c1c' },
   };
-  const cfg = statCfg[ticket.status] || statCfg.upcoming;
+  const cfg = statCfg[ticketState.status] || statCfg.upcoming;
+
+  const handleCancelTicket = async () => {
+    try {
+      if (ticketState.status !== 'upcoming') {
+        showToast('Ve nay khong the huy', 'error');
+        return;
+      }
+
+      setLoadingCancel(true);
+      await ticketApi.cancel(ticketState.id);
+      setTicketState((prev) => ({ ...prev, status: 'cancelled' }));
+      showToast('Huy ve thanh cong');
+    } catch (error) {
+      showToast(error.message || 'Khong the huy ve', 'error');
+    } finally {
+      setLoadingCancel(false);
+    }
+  };
 
   return (
     <div style={{ minHeight:'100vh', background:BG, paddingBottom:30 }}>
+      <Toast toast={toast}/>
       <Header title="Chi tiết vé" back={back}/>
       <div style={{ padding:'16px' }}>
         {/* Ticket Card */}
@@ -1378,7 +1606,7 @@ function TicketDetailScreen({ navigate, back, ticket=MOCK_TICKETS[0] }) {
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
               <div>
                 <div style={{ color:'rgba(255,255,255,0.7)', fontSize:12, marginBottom:4 }}>Mã vé</div>
-                <div style={{ color:'white', fontWeight:800, fontSize:18, fontFamily:'monospace' }}>{ticket.id}</div>
+                <div style={{ color:'white', fontWeight:800, fontSize:18, fontFamily:'monospace' }}>{ticketState.id}</div>
               </div>
               <div style={{ background:cfg.bg, color:cfg.color, padding:'6px 12px', borderRadius:20, fontSize:12, fontWeight:700 }}>{cfg.label}</div>
             </div>
@@ -1389,12 +1617,12 @@ function TicketDetailScreen({ navigate, back, ticket=MOCK_TICKETS[0] }) {
           </div>
           <div style={{ padding:'20px' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
-              <div><div style={{ fontSize:28, fontWeight:800 }}>{ticket.time}</div><div style={{ fontSize:13, color:'#6b7280', display:'flex', alignItems:'center', gap:4 }}><MapPin size={13}/>{ticket.from}</div></div>
+              <div><div style={{ fontSize:28, fontWeight:800 }}>{ticketState.time}</div><div style={{ fontSize:13, color:'#6b7280', display:'flex', alignItems:'center', gap:4 }}><MapPin size={13}/>{ticketState.from}</div></div>
               <div style={{ flex:1, padding:'0 16px' }}><div style={{ height:3, background:GRAD, borderRadius:3 }}/></div>
-              <div style={{ textAlign:'right' }}><div style={{ fontSize:28, fontWeight:800 }}>--:--</div><div style={{ fontSize:13, color:'#6b7280', display:'flex', alignItems:'center', justifyContent:'flex-end', gap:4 }}><MapPin size={13}/>{ticket.to}</div></div>
+              <div style={{ textAlign:'right' }}><div style={{ fontSize:28, fontWeight:800 }}>--:--</div><div style={{ fontSize:13, color:'#6b7280', display:'flex', alignItems:'center', justifyContent:'flex-end', gap:4 }}><MapPin size={13}/>{ticketState.to}</div></div>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-              {[['Tàu', `SE${ticket.trainId}`],['Ngày', ticket.date],['Toa', ticket.carriageType],['Ghế', ticket.seats.join(', ')]].map(([l,v])=>(
+              {[['Tàu', `${ticketState.trainId}`],['Ngày', ticketState.date],['Toa', ticketState.carriageType],['Ghế', ticketState.seats.join(', ')]].map(([l,v])=>(
                 <div key={l}>
                   <div style={{ fontSize:12, color:'#9ca3af', marginBottom:2 }}>{l}</div>
                   <div style={{ fontWeight:600, fontSize:14 }}>{v}</div>
@@ -1408,10 +1636,10 @@ function TicketDetailScreen({ navigate, back, ticket=MOCK_TICKETS[0] }) {
           </div>
           <div style={{ padding:'20px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div><div style={{ fontSize:12, color:'#9ca3af' }}>Tổng thanh toán</div><div style={{ fontSize:24, fontWeight:800, color:P }}>{fmt(ticket.totalPrice)}</div></div>
+              <div><div style={{ fontSize:12, color:'#9ca3af' }}>Tổng thanh toán</div><div style={{ fontSize:24, fontWeight:800, color:P }}>{fmt(ticketState.totalPrice)}</div></div>
               <div style={{ background:'#f9fafb', borderRadius:12, padding:12, display:'grid', gridTemplateColumns:'repeat(8,1fr)', gap:2 }}>
                 {Array.from({length:64}).map((_,i)=>(
-                  <div key={i} style={{ width:6, height:6, background: Math.abs(Math.sin(i*0.7+ticket.id.charCodeAt(2)))>0.5?'#111827':'transparent', borderRadius:1 }}/>
+                  <div key={i} style={{ width:6, height:6, background: Math.abs(Math.sin(i*0.7+ticketState.id.charCodeAt(2)))>0.5?'#111827':'transparent', borderRadius:1 }}/>
                 ))}
               </div>
             </div>
@@ -1421,14 +1649,14 @@ function TicketDetailScreen({ navigate, back, ticket=MOCK_TICKETS[0] }) {
         {/* Passengers */}
         <Card style={{ marginBottom:14 }}>
           <div style={{ fontWeight:700, fontSize:15, marginBottom:14 }}>Hành khách</div>
-          {ticket.passengers.map((p,i)=>(
-            <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom: i<ticket.passengers.length-1?'1px solid #f3f4f6':'none' }}>
+          {ticketState.passengers.map((p,i)=>(
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom: i<ticketState.passengers.length-1?'1px solid #f3f4f6':'none' }}>
               <div style={{ background:GRAD, borderRadius:'50%', width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                 <span style={{ color:'white', fontWeight:700, fontSize:14 }}>{p.name.charAt(0)}</span>
               </div>
               <div>
                 <div style={{ fontWeight:600, fontSize:14 }}>{p.name}</div>
-                <div style={{ fontSize:12, color:'#9ca3af' }}>Ghế {ticket.seats[i]||ticket.seats[0]}</div>
+                <div style={{ fontSize:12, color:'#9ca3af' }}>Ghế {ticketState.seats[i]||ticketState.seats[0]}</div>
               </div>
             </div>
           ))}
@@ -1438,9 +1666,11 @@ function TicketDetailScreen({ navigate, back, ticket=MOCK_TICKETS[0] }) {
           <Btn variant="outline"><Download size={16}/>Tải vé PDF</Btn>
           <Btn variant="outline"><Share2 size={16}/>Chia sẻ</Btn>
         </div>
-        {ticket.status==='upcoming' && (
+        {ticketState.status==='upcoming' && (
           <div style={{ marginTop:10 }}>
-            <Btn variant="ghost" style={{ color:'#ef4444' }}><X size={16}/>Yêu cầu hủy vé</Btn>
+            <Btn variant="ghost" style={{ color:'#ef4444' }} onClick={handleCancelTicket} disabled={loadingCancel}>
+              <X size={16}/>{loadingCancel ? 'Dang huy ve...' : 'Yeu cau huy ve'}
+            </Btn>
           </div>
         )}
       </div>
@@ -1600,7 +1830,7 @@ export default function App() {
   const [screen, setScreen] = useState('splash');
   const [history, setHistory] = useState([]);
   const [data, setData] = useState({});
-  const [tickets, setTickets] = useState(MOCK_TICKETS);
+  const [tickets] = useState([]);
   const [user, setUser] = useState(null);
 
   const navigate = (newScreen, newData={}) => {
@@ -1618,20 +1848,6 @@ export default function App() {
   };
 
   const onPaymentSuccess = (d) => {
-    const newTicket = {
-      id:`TK${Date.now().toString().slice(-8)}`,
-      trainId: data.selectedTrain?.id||'SE1',
-      from: data.searchData?.from||'Hà Nội',
-      to: data.searchData?.to||'Đà Nẵng',
-      date: data.searchData?.date||'2026-04-25',
-      time: data.selectedTrain?.dep||'06:00',
-      seats: data.selectedSeats||[],
-      carriageType: data.carriage?.type||'Ngồi mềm điều hòa',
-      totalPrice: d.finalTotal||0,
-      status:'upcoming',
-      passengers: d.passengers||[],
-    };
-    setTickets(v=>[newTicket,...v]);
     navigate('paymentSuccess', d);
   };
 
@@ -1656,6 +1872,8 @@ export default function App() {
       case 'ticketDetail': return <TicketDetailScreen {...p}/>;
       case 'notifications': return <NotificationsScreen {...p}/>;
       case 'profile': return <ProfileScreen {...p}/>;
+      case 'owners': return <OwnerDashboardScreen {...p}/>;
+      case 'createTrain': return <CreateTrainScreen {...p}/>;
       default: return <HomeScreen {...p}/>;
     }
   };

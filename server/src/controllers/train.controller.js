@@ -15,7 +15,7 @@ exports.searchTrains = async (req, res, next) => {
       fromStationCode: from,
       toStationCode: to,
       isActive: true
-    }).sort({ departureTime: 1 });
+    }).sort({ departureTime: 1 }).populate('ownerId', 'name contactName phone email');
 
     const data = await Promise.all(
       trains.map(async (train) => {
@@ -34,6 +34,9 @@ exports.searchTrains = async (req, res, next) => {
           trainCode: train.trainCode,
           trainName: train.trainName,
           trainType: train.trainType,
+          owner: train.ownerId
+            ? { id: train.ownerId._id, name: train.ownerId.name, contactName: train.ownerId.contactName, phone: train.ownerId.phone, email: train.ownerId.email }
+            : train.ownerSnapshot || null,
           departureTime: train.departureTime,
           arrivalTime: train.arrivalTime,
           durationText: train.durationText,
@@ -46,6 +49,35 @@ exports.searchTrains = async (req, res, next) => {
     );
 
     res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.createTrain = async (req, res, next) => {
+  try {
+    const { trainCode, trainName, trainType, fromStationCode, toStationCode, departureTime, arrivalTime, durationText, ownerId } = req.body;
+
+    if (!trainCode || !trainName || !fromStationCode || !toStationCode) {
+      return res.status(400).json({ success: false, message: 'Thieu thong tin chuyen tau' });
+    }
+
+    const payload = { trainCode, trainName, trainType, fromStationCode, toStationCode, departureTime, arrivalTime, durationText };
+    if (ownerId) payload.ownerId = ownerId;
+
+    const t = await Train.create(payload);
+    res.json({ success: true, data: t });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateTrain = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    const t = await Train.findByIdAndUpdate(id, updates, { new: true });
+    res.json({ success: true, data: t });
   } catch (error) {
     next(error);
   }

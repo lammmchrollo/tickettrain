@@ -5,6 +5,8 @@ const TrainSchema = new mongoose.Schema(
     trainCode: { type: String, required: true, unique: true, trim: true },
     trainName: { type: String, required: true, trim: true },
     trainType: { type: String, required: true, trim: true },
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Owner' },
+    ownerSnapshot: { type: Object },
     fromStationCode: { type: String, required: true },
     toStationCode: { type: String, required: true },
     departureTime: { type: String, required: true },

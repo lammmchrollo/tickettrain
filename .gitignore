@@ -24,8 +24,8 @@ dist-ssr
 *.sw?
 
 .env
-node_modules
-dist
-android/build
+server/.env
 server/node_modules
 server/database.sqlite
+android/build
+android/app/build

@@ -6,6 +6,7 @@ const Train = require('../models/train.model');
 const Carriage = require('../models/carriage.model');
 const Seat = require('../models/seat.model');
 const Promotion = require('../models/promotion.model');
+const Owner = require('../models/owner.model');
 
 const stations = [
   { code: 'HN', name: 'Ha Noi', city: 'Ha Noi' },
@@ -38,13 +39,25 @@ async function run() {
   await Promise.all([
     Station.deleteMany({}),
     Train.deleteMany({}),
+    Owner.deleteMany({}),
     Carriage.deleteMany({}),
     Seat.deleteMany({}),
     Promotion.deleteMany({})
   ]);
 
   await Station.insertMany(stations);
+  const owners = [
+    { name: 'Công ty Vận tải Bắc Nam', contactName: 'Nguyễn Văn Chủ', phone: '0912345678', email: 'info@vettau.vn', type: 'company' },
+    { name: 'Người bán lẻ A', contactName: 'Trần Thị B', phone: '0987654321', email: 'ownerA@example.com', type: 'individual' }
+  ];
+  const insertedOwners = await Owner.insertMany(owners);
   const insertedTrains = await Train.insertMany(trains);
+
+  // Assign owners to some trains
+  if (insertedOwners && insertedOwners.length) {
+    await Train.findOneAndUpdate({ trainCode: 'SE1' }, { ownerId: insertedOwners[0]._id, ownerSnapshot: { name: insertedOwners[0].name, contactName: insertedOwners[0].contactName, phone: insertedOwners[0].phone, email: insertedOwners[0].email } });
+    await Train.findOneAndUpdate({ trainCode: 'SE5' }, { ownerId: insertedOwners[1]._id, ownerSnapshot: { name: insertedOwners[1].name, contactName: insertedOwners[1].contactName, phone: insertedOwners[1].phone, email: insertedOwners[1].email } });
+  }
 
   for (const train of insertedTrains) {
     for (const c of carriageTemplates) {

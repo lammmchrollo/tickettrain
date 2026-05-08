@@ -11,6 +11,7 @@ const seatRoutes = require('./routes/seat.routes');
 const orderRoutes = require('./routes/order.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const ticketRoutes = require('./routes/ticket.routes');
+const ownerRoutes = require('./routes/owner.routes');
 
 const app = express();
 const allowedOrigins = APP_ORIGIN.split(',').map((v) => v.trim()).filter(Boolean);
@@ -40,6 +41,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/trains', trainRoutes);
 app.use('/api/seats', seatRoutes);
+app.use('/api/owners', ownerRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/tickets', ticketRoutes);
