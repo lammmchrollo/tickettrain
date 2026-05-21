@@ -57,6 +57,15 @@ const T = '#0d9488';
 const BG = '#f9fafb';
 const GRAD = `linear-gradient(135deg, ${P} 0%, ${T} 100%)`;
 const GRAD2 = `linear-gradient(135deg, ${PD} 0%, ${T} 100%)`;
+const ROLE_LABELS = {
+  admin: 'Quản trị viên',
+  customer: 'Người mua vé'
+};
+const ROLE_OPTIONS = [
+  { value: 'customer', label: 'Người mua vé' },
+  { value: 'admin', label: 'Admin' }
+];
+const ADMIN_ONLY_SCREENS = new Set(['owners', 'createTrain']);
 
 const fmt = (n) => n.toLocaleString('vi-VN') + 'đ';
 
@@ -116,6 +125,36 @@ const seatStatus = (idx) => {
 const Card = ({ children, style = {}, onClick }) => (
   <div onClick={onClick} style={{ background:'white', borderRadius:16, boxShadow:'0 4px 12px rgba(0,0,0,0.08)', padding:'20px', ...style, cursor: onClick ? 'pointer' : 'default' }}>
     {children}
+  </div>
+);
+
+const RoleSelector = ({ value, onChange, note }) => (
+  <div style={{ marginBottom:16 }}>
+    <div style={{ fontSize:13, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Vai trò</div>
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+      {ROLE_OPTIONS.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            style={{
+              padding:'12px 10px',
+              borderRadius:12,
+              border:`1.5px solid ${active ? P : '#e5e7eb'}`,
+              background:active ? '#eff6ff' : '#f9fafb',
+              color:active ? P : '#374151',
+              fontWeight:700,
+              cursor:'pointer'
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+    {note && <div style={{ marginTop:8, fontSize:12, color:'#6b7280', lineHeight:1.4 }}>{note}</div>}
   </div>
 );
 
@@ -184,12 +223,12 @@ function SplashScreen({ navigate, setUser }) {
             navigate('login');
           }
         }, 2500);
-      } catch (e) {
+      } catch {
         setTimeout(() => navigate('login'), 2500);
       }
     };
     checkAuth();
-  }, []);
+  }, [navigate, setUser]);
   return (
     <div style={{ height:'100vh', background:GRAD, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:0 }}>
       <style>{`
@@ -218,6 +257,7 @@ function SplashScreen({ navigate, setUser }) {
 function LoginScreen({ navigate, setUser }) {
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
+  const [role, setRole] = useState('customer');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [toast, showToast] = useToast();
@@ -227,7 +267,7 @@ function LoginScreen({ navigate, setUser }) {
     setLoading(true);
 
     try {
-      const res = await authApi.login({ email, pass });
+      const res = await authApi.login({ email, pass, role });
 
       if (res.data.success) {
         const { token, user: userData } = res.data;
@@ -264,6 +304,11 @@ function LoginScreen({ navigate, setUser }) {
       <div style={{ padding:'0 20px', marginTop:-20, position:'relative', zIndex:1 }}>
         <Card style={{ marginBottom:20, borderRadius:20, paddingTop:24 }}>
           <div style={{ fontSize:20, fontWeight:700, color:'#111827', marginBottom:20, textAlign:'center' }}>Đăng nhập</div>
+          <RoleSelector
+            value={role}
+            onChange={setRole}
+            note="Chọn đúng vai trò của tài khoản để đăng nhập."
+          />
           <div style={{ marginBottom:16 }}>
             <label style={{ fontSize:13, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Email</label>
             <div style={{ position:'relative' }}>
@@ -300,19 +345,19 @@ function LoginScreen({ navigate, setUser }) {
 
 // ─── RegisterScreen ──────────────────────────────────────────────
 function RegisterScreen({ navigate, setUser }) {
-  const [form, setForm] = useState({ name: '', email: '', pass: '', confirmPass: '' });
+  const [form, setForm] = useState({ name: '', email: '', pass: '', confirmPass: '', role: 'customer' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [toast, showToast] = useToast();
 
   const handleRegister = async () => {
-    const { name, email, pass, confirmPass } = form;
+    const { name, email, pass, confirmPass, role } = form;
     if (!name || !email || !pass) { showToast('Vui lòng điền đủ thông tin', 'error'); return; }
     if (pass !== confirmPass) { showToast('Mật khẩu xác nhận không khớp', 'error'); return; }
 
     setLoading(true);
     try {
-      const res = await authApi.register({ name, email, pass });
+      const res = await authApi.register({ name, email, pass, role });
 
       if (res.data.success) {
         const { token, user: userData } = res.data;
@@ -350,6 +395,11 @@ function RegisterScreen({ navigate, setUser }) {
       </div>
       <div style={{ padding:'0 20px', marginTop:-20, position:'relative', zIndex:1 }}>
         <Card style={{ marginBottom:20, borderRadius:20, paddingTop:24 }}>
+          <RoleSelector
+            value={form.role}
+            onChange={(nextRole) => setForm({ ...form, role: nextRole })}
+            note="Người mua vé chỉ dùng các tính năng đặt vé. Admin có thêm quyền quản lý và tạo chuyến tàu."
+          />
           <div style={{ marginBottom:16 }}>
             <label style={{ fontSize:13, fontWeight:600, color:'#374151', display:'block', marginBottom:6 }}>Họ và tên</label>
             <div style={{ position:'relative' }}>
@@ -399,6 +449,7 @@ function RegisterScreen({ navigate, setUser }) {
 function HomeScreen({ navigate, user }) {
   const [form, setForm] = useState({ from:'', to:'', date:'', passengers:1 });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const isAdmin = user?.role === 'admin';
 
   const inpSt = { width:'100%', padding:'12px 14px', background:'#f9fafb', border:'1.5px solid #e5e7eb', borderRadius:12, fontSize:14, outline:'none', boxSizing:'border-box' };
 
@@ -409,6 +460,11 @@ function HomeScreen({ navigate, user }) {
         <div style={{ position:'absolute', top:-32, right:-32, width:140, height:140, background:'rgba(255,255,255,0.06)', borderRadius:'50%' }} />
         <div style={{ fontSize:22, fontWeight:800, color:'white', marginBottom:2, letterSpacing:'-0.5px' }}>Xin chào! 👋</div>
         <div style={{ color:'rgba(255,255,255,0.8)', fontSize:12 }}>Bạn muốn đi đâu hôm nay?</div>
+        {isAdmin && (
+          <div style={{ display:'inline-flex', alignItems:'center', gap:6, marginTop:12, background:'rgba(255,255,255,0.16)', color:'white', borderRadius:999, padding:'6px 12px', fontSize:12, fontWeight:700 }}>
+            <Shield size={14} /> Chế độ {ROLE_LABELS.admin}
+          </div>
+        )}
       </div>
 
       <div style={{ padding:'0 16px', marginTop:-30, position:'relative', zIndex:1 }}>
@@ -435,13 +491,13 @@ function HomeScreen({ navigate, user }) {
         </Card>
 
         {/* Quick Actions */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
+        <div style={{ display:'grid', gridTemplateColumns:`repeat(${isAdmin ? 5 : 4},1fr)`, gap:12, marginBottom:20 }}>
           {[
             { icon:Search, label:'Tìm chuyến', sc:'search', bg:'#dbeafe', ic:'#2563eb' },
             { icon:Ticket, label:'Vé của tôi', sc:'myTickets', bg:'#ccfbf1', ic:'#0d9488' },
             { icon:Clock, label:'Lịch sử', sc:'myTickets', bg:'#ffedd5', ic:'#ea580c' },
             { icon:Headphones, label:'Hỗ trợ', sc:'profile', bg:'#ede9fe', ic:'#7c3aed' },
-            { icon:Train, label:'Chủ chuyến', sc:'owners', bg:'#dcfce7', ic:'#16a34a' },
+            ...(isAdmin ? [{ icon:Train, label:'Chủ chuyến', sc:'owners', bg:'#dcfce7', ic:'#16a34a' }] : []),
           ].map(a=>(
             <button key={a.label} onClick={()=>navigate(a.sc)} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
               <div style={{ background:a.bg, width:56, height:56, borderRadius:16, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -1109,32 +1165,99 @@ function PassengerInfoScreen({ navigate, back, selectedSeats=[], totalPrice=0, c
 
 // ─── OwnerDashboardScreen ───────────────────────────────────────
 function OwnerDashboardScreen({ navigate, back, user }) {
+  const isAdmin = user?.role === 'admin';
   const [owners, setOwners] = useState([]);
+  const [selectedOwnerId, setSelectedOwnerId] = useState(null);
+  const [ownerTrains, setOwnerTrains] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name:'', contactName:'', phone:'', email:'' });
   const [toast, showToast] = useToast();
 
-  const fetch = async () => {
-    setLoading(true);
-    try {
-      const res = await ownerApi.list();
-      setOwners(res.data.data || []);
-    } catch (err) { showToast(err.message||'Lỗi khi tải danh sách'); }
-    setLoading(false);
-  };
+  useEffect(() => {
+    if (!isAdmin) return;
 
-  useEffect(()=>{ fetch(); }, []);
+    const loadOwners = async () => {
+      setLoading(true);
+      try {
+        const res = await ownerApi.list();
+        setOwners(res.data.data || []);
+      } catch (err) {
+        showToast(err.message || 'Lỗi khi tải danh sách');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOwners();
+  }, [isAdmin, showToast]);
+
+  useEffect(() => {
+    const loadOwnerTrains = async () => {
+      if (!isAdmin || !selectedOwnerId) return;
+      try {
+        const res = await trainApi.listByOwner(selectedOwnerId);
+        setOwnerTrains(res.data.data || []);
+      } catch (err) {
+        showToast(err.message || 'Lỗi tải chuyến của chủ', 'error');
+      }
+    };
+    loadOwnerTrains();
+  }, [isAdmin, selectedOwnerId, showToast]);
+
+  if (!isAdmin) {
+    return (
+      <div style={{ minHeight:'100vh', background:BG, paddingBottom:80 }}>
+        <Header title="Quản trị" back={back} />
+        <div style={{ padding:16 }}>
+          <Card>
+            <div style={{ fontSize:18, fontWeight:800, marginBottom:8 }}>Bạn không có quyền truy cập</div>
+            <div style={{ color:'#6b7280', fontSize:14, lineHeight:1.5, marginBottom:16 }}>
+              Màn này chỉ dành cho tài khoản admin để quản lý chủ chuyến và tạo chuyến tàu.
+            </div>
+            <Btn onClick={()=>navigate('home')}>Về trang chủ</Btn>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   const handleCreate = async () => {
     if(!form.name) { showToast('Vui lòng nhập tên chủ','error'); return; }
     try {
-      const res = await ownerApi.create(form);
+      await ownerApi.create(form);
       showToast('Tạo chủ chuyến thành công');
       setShowCreate(false);
       setForm({ name:'', contactName:'', phone:'', email:'' });
-      fetch();
+      const res = await ownerApi.list();
+      setOwners(res.data.data || []);
     } catch (err) { showToast(err.message||'Tạo thất bại','error'); }
+  };
+
+  const handlePublish = async (trainId) => {
+    try {
+      await trainApi.publish(trainId);
+      showToast('Đã xuất bản chuyến');
+      if (selectedOwnerId) {
+        const res = await trainApi.listByOwner(selectedOwnerId);
+        setOwnerTrains(res.data.data || []);
+      }
+    } catch (err) {
+      showToast(err.message || 'Xuất bản thất bại', 'error');
+    }
+  };
+
+  const handleCancel = async (trainId) => {
+    try {
+      await trainApi.cancel(trainId);
+      showToast('Đã hủy chuyến');
+      if (selectedOwnerId) {
+        const res = await trainApi.listByOwner(selectedOwnerId);
+        setOwnerTrains(res.data.data || []);
+      }
+    } catch (err) {
+      showToast(err.message || 'Hủy chuyến thất bại', 'error');
+    }
   };
 
   return (
@@ -1153,16 +1276,40 @@ function OwnerDashboardScreen({ navigate, back, user }) {
         {loading ? <div>Đang tải...</div> : (
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             {owners.map(o=> (
-              <Card key={o._id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <Card key={o._id} style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 <div>
                   <div style={{ fontWeight:700 }}>{o.name}</div>
                   <div style={{ fontSize:13, color:'#6b7280' }}>{o.contactName} · {o.phone}</div>
                 </div>
-                <div style={{ display:'flex', gap:8 }}>
-                  <button onClick={()=>navigate('createTrain',{ownerId:o._id, ownerName:o.name})} style={{ background:'none', border:'none', color:P, cursor:'pointer', fontWeight:700 }}>Tạo chuyến với chủ này</button>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  <button onClick={()=>navigate('createTrain',{ownerId:o._id, ownerName:o.name})} style={{ background:'none', border:'none', color:P, cursor:'pointer', fontWeight:700 }}>Tạo chuyến</button>
+                  <button onClick={()=>setSelectedOwnerId(o._id)} style={{ background:'none', border:'none', color:T, cursor:'pointer', fontWeight:700 }}>Xem chuyến của chủ này</button>
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+
+        {selectedOwnerId && (
+          <div style={{ marginTop:20 }}>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:10 }}>Các chuyến của chủ đã chọn</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {ownerTrains.map(train => (
+                <Card key={train._id} style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div>
+                      <div style={{ fontWeight:700 }}>{train.trainCode} · {train.trainName}</div>
+                      <div style={{ fontSize:13, color:'#6b7280' }}>{train.fromStationCode} → {train.toStationCode} · {train.departureTime} - {train.arrivalTime}</div>
+                    </div>
+                    <span style={{ background: train.status === 'published' ? '#dcfce7' : train.status === 'draft' ? '#fef3c7' : '#fee2e2', color: train.status === 'published' ? '#15803d' : train.status === 'draft' ? '#92400e' : '#b91c1c', padding:'4px 10px', borderRadius:999, fontSize:12, fontWeight:700 }}>{train.status}</span>
+                  </div>
+                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                    {train.status !== 'published' && <button onClick={()=>handlePublish(train._id)} style={{ background:'none', border:'none', color:T, cursor:'pointer', fontWeight:700 }}>Xuất bản</button>}
+                    {train.status !== 'cancelled' && <button onClick={()=>handleCancel(train._id)} style={{ background:'none', border:'none', color:'#ef4444', cursor:'pointer', fontWeight:700 }}>Hủy chuyến</button>}
+                  </div>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1190,23 +1337,51 @@ function OwnerDashboardScreen({ navigate, back, user }) {
 }
 
 // ─── CreateTrainScreen ─────────────────────────────────────────
-function CreateTrainScreen({ navigate, back, ownerId: initialOwnerId=null, ownerName=null }) {
-  const [form, setForm] = useState({ trainCode:'', trainName:'', trainType:'', fromStationCode:'', toStationCode:'', departureTime:'', arrivalTime:'', durationText:'', ownerId: initialOwnerId });
+function CreateTrainScreen({ navigate, back, ownerId: initialOwnerId=null, ownerName=null, user }) {
+  const isAdmin = user?.role === 'admin';
+  const [form, setForm] = useState({ trainCode:'', trainName:'', trainType:'', fromStationCode:'', toStationCode:'', departureTime:'', arrivalTime:'', durationText:'', ownerId: initialOwnerId, status:'draft' });
   const [owners, setOwners] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [toast, showToast] = useToast();
 
-  useEffect(()=>{ (async()=>{ try{ const res=await ownerApi.list(); setOwners(res.data.data||[]); }catch(e){} })(); }, []);
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    (async () => {
+      try {
+        const res = await ownerApi.list();
+        setOwners(res.data.data || []);
+      } catch (error) {
+        console.error('Failed to load owners', error);
+      }
+    })();
+  }, [isAdmin]);
 
   const handleCreate = async () => {
     if(!form.trainCode||!form.trainName||!form.fromStationCode||!form.toStationCode) { showToast('Vui lòng điền các trường bắt buộc','error'); return; }
     try{
       const payload = { ...form };
-      const res = await trainApi.create(payload);
+      await trainApi.create(payload);
       showToast('Tạo chuyến thành công');
-      navigate('trains');
+      navigate('owners');
     }catch(err){ showToast(err.message||'Tạo chuyến thất bại','error'); }
   };
+
+  if (!isAdmin) {
+    return (
+      <div style={{ minHeight:'100vh', background:BG, paddingBottom:80 }}>
+        <Header title="Tạo chuyến" back={back} />
+        <div style={{ padding:16 }}>
+          <Card>
+            <div style={{ fontSize:18, fontWeight:800, marginBottom:8 }}>Bạn không có quyền truy cập</div>
+            <div style={{ color:'#6b7280', fontSize:14, lineHeight:1.5, marginBottom:16 }}>
+              Chức năng tạo chuyến tàu chỉ dành cho admin.
+            </div>
+            <Btn onClick={()=>navigate('home')}>Về trang chủ</Btn>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight:'100vh', background:BG, paddingBottom:80 }}>
@@ -1231,6 +1406,16 @@ function CreateTrainScreen({ navigate, back, ownerId: initialOwnerId=null, owner
               <option value="">-- Chọn chủ --</option>
               {owners.map(o=> <option key={o._id} value={o._id}>{o.name} ({o.contactName||o.phone||o.email})</option>)}
             </select>
+          </div>
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:13, fontWeight:600 }}>Trạng thái ban đầu</div>
+            <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={{ width:'100%', padding:10, borderRadius:8, border:'1px solid #e5e7eb' }}>
+              <option value="draft">Nháp</option>
+              <option value="published">Xuất bản ngay</option>
+            </select>
+          </div>
+          <div style={{ fontSize:12, color:'#6b7280', marginBottom:8 }}>
+            {ownerName ? `Đang tạo chuyến cho chủ: ${ownerName}` : 'Chuyến mới mặc định ở trạng thái nháp cho đến khi xuất bản.'}
           </div>
           <div style={{ display:'flex', gap:8, marginTop:12 }}>
             <Btn onClick={handleCreate}>Tạo chuyến</Btn>
@@ -1716,6 +1901,7 @@ function ProfileScreen({ navigate, back, user={}, setUser }) {
   const [toast, showToast] = useToast();
   const name = user?.name || 'Nguyễn Văn A';
   const email = user?.email || 'nguyenvana@email.com';
+  const roleLabel = ROLE_LABELS[user?.role || 'customer'];
 
   const sections = [
     { title:'Tài khoản', items:[
@@ -1758,6 +1944,9 @@ function ProfileScreen({ navigate, back, user={}, setUser }) {
             <div style={{ fontSize:18, fontWeight:700, marginBottom:4 }}>{name}</div>
             <div style={{ fontSize:13, color:'#6b7280', display:'flex', alignItems:'center', gap:6, marginBottom:2 }}><Mail size={13}/>{email}</div>
             <div style={{ fontSize:13, color:'#6b7280', display:'flex', alignItems:'center', gap:6 }}><Phone size={13}/>0912 345 678</div>
+            <div style={{ marginTop:8, display:'inline-flex', alignItems:'center', gap:6, background:'#eff6ff', color:P, borderRadius:999, padding:'4px 10px', fontSize:12, fontWeight:700 }}>
+              <Shield size={12} /> {roleLabel}
+            </div>
           </div>
           <ChevronRight size={20} color="#9ca3af"/>
         </div>
@@ -1872,8 +2061,8 @@ export default function App() {
       case 'ticketDetail': return <TicketDetailScreen {...p}/>;
       case 'notifications': return <NotificationsScreen {...p}/>;
       case 'profile': return <ProfileScreen {...p}/>;
-      case 'owners': return <OwnerDashboardScreen {...p}/>;
-      case 'createTrain': return <CreateTrainScreen {...p}/>;
+      case 'owners': return ADMIN_ONLY_SCREENS.has('owners') && user?.role !== 'admin' ? <HomeScreen {...p}/> : <OwnerDashboardScreen {...p}/>;
+      case 'createTrain': return ADMIN_ONLY_SCREENS.has('createTrain') && user?.role !== 'admin' ? <HomeScreen {...p}/> : <CreateTrainScreen {...p}/>;
       default: return <HomeScreen {...p}/>;
     }
   };

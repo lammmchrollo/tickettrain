@@ -13,5 +13,14 @@ export const trainApi = {
   },
   update(id, payload) {
     return http.put(`/trains/${id}`, payload);
+  },
+  listByOwner(ownerId) {
+    return http.get(`/trains/owner/${ownerId}`);
+  },
+  publish(id) {
+    return http.patch(`/trains/${id}/publish`);
+  },
+  cancel(id) {
+    return http.patch(`/trains/${id}/cancel`);
   }
 };
