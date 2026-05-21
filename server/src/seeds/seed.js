@@ -21,10 +21,10 @@ const stations = [
 ];
 
 const trains = [
-  { trainCode: 'SE1', trainName: 'SE1', trainType: 'Tau nhanh', fromStationCode: 'HN', toStationCode: 'DAD', departureTime: '06:00', arrivalTime: '20:30', durationText: '14h 30m', rating: 4.8, isPremium: false },
-  { trainCode: 'SE3', trainName: 'SE3', trainType: 'Tau nhanh', fromStationCode: 'HN', toStationCode: 'DAD', departureTime: '19:30', arrivalTime: '10:00', durationText: '14h 30m', rating: 4.7, isPremium: false },
-  { trainCode: 'SE5', trainName: 'SE5', trainType: 'Tau chat luong cao', fromStationCode: 'HN', toStationCode: 'DAD', departureTime: '07:00', arrivalTime: '20:15', durationText: '13h 15m', rating: 4.9, isPremium: true },
-  { trainCode: 'SE7', trainName: 'SE7', trainType: 'Tau thuong', fromStationCode: 'HN', toStationCode: 'DAD', departureTime: '22:00', arrivalTime: '13:30', durationText: '15h 30m', rating: 4.5, isPremium: false }
+  { trainCode: 'SE1', trainName: 'SE1', trainType: 'Tau nhanh', fromStationCode: 'HN', toStationCode: 'DAD', departureTime: '06:00', arrivalTime: '20:30', durationText: '14h 30m', rating: 4.8, isPremium: false, status: 'published' },
+  { trainCode: 'SE3', trainName: 'SE3', trainType: 'Tau nhanh', fromStationCode: 'HN', toStationCode: 'DAD', departureTime: '19:30', arrivalTime: '10:00', durationText: '14h 30m', rating: 4.7, isPremium: false, status: 'published' },
+  { trainCode: 'SE5', trainName: 'SE5', trainType: 'Tau chat luong cao', fromStationCode: 'HN', toStationCode: 'DAD', departureTime: '07:00', arrivalTime: '20:15', durationText: '13h 15m', rating: 4.9, isPremium: true, status: 'draft' },
+  { trainCode: 'SE7', trainName: 'SE7', trainType: 'Tau thuong', fromStationCode: 'HN', toStationCode: 'DAD', departureTime: '22:00', arrivalTime: '13:30', durationText: '15h 30m', rating: 4.5, isPremium: false, status: 'cancelled' }
 ];
 
 const carriageTemplates = [
@@ -55,8 +55,8 @@ async function run() {
 
   // Assign owners to some trains
   if (insertedOwners && insertedOwners.length) {
-    await Train.findOneAndUpdate({ trainCode: 'SE1' }, { ownerId: insertedOwners[0]._id, ownerSnapshot: { name: insertedOwners[0].name, contactName: insertedOwners[0].contactName, phone: insertedOwners[0].phone, email: insertedOwners[0].email } });
-    await Train.findOneAndUpdate({ trainCode: 'SE5' }, { ownerId: insertedOwners[1]._id, ownerSnapshot: { name: insertedOwners[1].name, contactName: insertedOwners[1].contactName, phone: insertedOwners[1].phone, email: insertedOwners[1].email } });
+    await Train.findOneAndUpdate({ trainCode: 'SE1' }, { ownerId: insertedOwners[0]._id, ownerSnapshot: { name: insertedOwners[0].name, contactName: insertedOwners[0].contactName, phone: insertedOwners[0].phone, email: insertedOwners[0].email, type: insertedOwners[0].type } });
+    await Train.findOneAndUpdate({ trainCode: 'SE5' }, { ownerId: insertedOwners[1]._id, ownerSnapshot: { name: insertedOwners[1].name, contactName: insertedOwners[1].contactName, phone: insertedOwners[1].phone, email: insertedOwners[1].email, type: insertedOwners[1].type } });
   }
 
   for (const train of insertedTrains) {

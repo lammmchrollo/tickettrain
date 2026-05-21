@@ -7,6 +7,13 @@ const TrainSchema = new mongoose.Schema(
     trainType: { type: String, required: true, trim: true },
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Owner' },
     ownerSnapshot: { type: Object },
+    status: {
+      type: String,
+      enum: ['draft', 'published', 'cancelled'],
+      default: 'draft'
+    },
+    publishedAt: { type: Date },
+    cancelledAt: { type: Date },
     fromStationCode: { type: String, required: true },
     toStationCode: { type: String, required: true },
     departureTime: { type: String, required: true },
