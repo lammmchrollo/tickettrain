@@ -1,8 +1,14 @@
 import http from './http';
 
 export const authApi = {
-  register(payload) {
-    return http.post('/auth/register', payload);
+  sendRegisterOtp(payload) {
+    return http.post('/auth/register/send-otp', payload);
+  },
+  verifyRegisterOtp(payload) {
+    return http.post('/auth/register/verify-otp', payload);
+  },
+  resendRegisterOtp(payload) {
+    return http.post('/auth/register/resend-otp', payload);
   },
   login(payload) {
     return http.post('/auth/login', payload);

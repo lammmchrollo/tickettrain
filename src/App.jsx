@@ -344,7 +344,7 @@ function LoginScreen({ navigate, setUser }) {
 }
 
 // ─── RegisterScreen ──────────────────────────────────────────────
-function RegisterScreen({ navigate, setUser }) {
+function RegisterScreen({ navigate }) {
   const [form, setForm] = useState({ name: '', email: '', pass: '', confirmPass: '', role: 'customer' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -357,17 +357,11 @@ function RegisterScreen({ navigate, setUser }) {
 
     setLoading(true);
     try {
-      const res = await authApi.register({ name, email, pass, role });
+      const res = await authApi.sendRegisterOtp({ name, email, pass, role });
 
       if (res.data.success) {
-        const { token, user: userData } = res.data;
-
-        await Preferences.set({ key: 'auth_token', value: token });
-        await Preferences.set({ key: 'user_data', value: JSON.stringify(userData) });
-
-        setUser(userData);
-        showToast('Đăng ký thành công!');
-        navigate('home');
+        showToast(res.data.message || 'Đã gửi mã OTP. Vui lòng kiểm tra email.', 'success');
+        setTimeout(() => navigate('verifyOtp', { email }), 600);
       }
     } catch (err) {
       console.error('Register error:', err);
@@ -441,6 +435,107 @@ function RegisterScreen({ navigate, setUser }) {
         </Card>
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+// ─── OtpVerifyScreen ────────────────────────────────────────────
+function OtpVerifyScreen({ navigate, back, email }) {
+  const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(300);
+  const [toast, showToast] = useToast();
+
+  useEffect(() => {
+    if (!email) {
+      navigate('register');
+      return;
+    }
+    setSecondsLeft(300);
+  }, [email]);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    const timerId = setInterval(() => {
+      setSecondsLeft((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+    return () => clearInterval(timerId);
+  }, [secondsLeft]);
+
+  const handleVerify = async () => {
+    if (!otp || otp.length < 6) {
+      showToast('Vui lòng nhập đủ 6 chữ số OTP', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await authApi.verifyRegisterOtp({ email, otp });
+      if (res.data.success) {
+        showToast(res.data.message || 'Xác minh thành công. Vui lòng đăng nhập.', 'success');
+        setTimeout(() => navigate('login'), 800);
+      }
+    } catch (err) {
+      showToast(err.message || 'Không thể xác minh OTP', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResendLoading(true);
+    try {
+      const res = await authApi.resendRegisterOtp({ email });
+      if (res.data.success) {
+        showToast(res.data.message || 'Đã gửi lại mã OTP');
+        setSecondsLeft(300);
+      } else {
+        showToast(res.data.message || 'Không thể gửi lại mã OTP', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Không thể gửi lại mã OTP', 'error');
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  const minutes = Math.floor(secondsLeft / 60);
+  const seconds = String(secondsLeft % 60).padStart(2, '0');
+
+  return (
+    <div style={{ minHeight:'100vh', background:BG }}>
+      <Toast toast={toast} />
+      <Header title="Xác minh OTP" sub="Nhập mã 6 chữ số" back={back} />
+      <div style={{ padding:'20px' }}>
+        <Card style={{ borderRadius:20 }}>
+          <div style={{ fontSize:14, color:'#6b7280', marginBottom:12 }}>
+            Mã OTP đã được gửi tới <strong style={{ color:'#111827' }}>{email}</strong>.
+          </div>
+          <div style={{ marginBottom:12, fontSize:12, color:'#9ca3af' }}>
+            Mã có hiệu lực trong {minutes}:{seconds}.
+          </div>
+          <input
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            inputMode="numeric"
+            placeholder="Nhập mã OTP"
+            style={{ width:'100%', padding:'14px', borderRadius:12, border:'1.5px solid #e5e7eb', fontSize:18, letterSpacing:6, textAlign:'center', marginBottom:16 }}
+          />
+          <Btn onClick={handleVerify} disabled={loading}>
+            {loading ? 'Đang xác minh...' : 'Xác minh'}
+          </Btn>
+          <div style={{ textAlign:'center', marginTop:12 }}>
+            <button
+              onClick={handleResend}
+              disabled={resendLoading}
+              style={{ background:'none', border:'none', color:P, fontWeight:600, cursor:'pointer', fontSize:13 }}
+            >
+              {resendLoading ? 'Đang gửi lại...' : 'Gửi lại mã OTP'}
+            </button>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -2049,6 +2144,7 @@ export default function App() {
       case 'splash': return <SplashScreen {...p}/>;
       case 'login': return <LoginScreen {...p}/>;
       case 'register': return <RegisterScreen {...p}/>;
+      case 'verifyOtp': return <OtpVerifyScreen {...p}/>;
       case 'home': return <HomeScreen {...p}/>;
       case 'search': return <SearchScreen {...p}/>;
       case 'trains': return <TrainListScreen {...p}/>;
