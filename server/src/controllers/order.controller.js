@@ -7,6 +7,29 @@ const { encryptText } = require('../services/crypto.service');
 const { maskPhone, maskNationalId } = require('../utils/mask');
 const { generateCode } = require('../utils/generateCode');
 
+const sanitizeOrderForCustomer = (orderDoc) => {
+  const order = orderDoc.toObject ? orderDoc.toObject() : orderDoc;
+
+  return {
+    _id: order._id,
+    orderCode: order.orderCode,
+    trainSnapshot: order.trainSnapshot,
+    selectedSeats: order.selectedSeats,
+    passengers: (order.passengers || []).map((p) => ({
+      fullName: p.fullName,
+      phoneMasked: p.phoneMasked,
+      nationalIdMasked: p.nationalIdMasked,
+      email: p.email || ''
+    })),
+    pricing: order.pricing,
+    promotionSnapshot: order.promotionSnapshot,
+    paymentStatus: order.paymentStatus,
+    orderStatus: order.orderStatus,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt
+  };
+};
+
 exports.quote = async (req, res, next) => {
   try {
     const { seatIds, promoCode } = req.body;
@@ -100,7 +123,10 @@ exports.createOrder = async (req, res, next) => {
 exports.getMyOrders = async (req, res, next) => {
   try {
     const orders = await Order.find({ userId: req.user.id }).sort({ createdAt: -1 });
-    res.json({ success: true, data: orders });
+    res.json({
+      success: true,
+      data: orders.map(sanitizeOrderForCustomer)
+    });
   } catch (error) {
     next(error);
   }

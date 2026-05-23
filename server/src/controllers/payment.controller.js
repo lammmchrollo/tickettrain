@@ -5,6 +5,8 @@ const mongoose = require('mongoose');
 const { mockProviderCreatePayment } = require('../services/payment.service');
 const { issueTicketsForOrder } = require('../services/ticket.service');
 const { generateCode } = require('../utils/generateCode');
+const { encryptText } = require('../services/crypto.service');
+const { maskPhone, maskNationalId } = require('../utils/mask');
 
 exports.createPayment = async (req, res, next) => {
   try {
@@ -95,6 +97,13 @@ exports.confirmMockPayment = async (req, res, next) => {
 
 exports.completeLegacyPayment = async (req, res, next) => {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(410).json({
+        success: false,
+        message: 'Luong thanh toan legacy da ngung hoat dong'
+      });
+    }
+
     const {
       selectedTrain,
       searchData,
@@ -110,6 +119,10 @@ exports.completeLegacyPayment = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Thieu thong tin chuyen tau hoac ghe' });
     }
 
+    if (!Array.isArray(passengers) || !passengers.length) {
+      return res.status(400).json({ success: false, message: 'Thieu thong tin hanh khach' });
+    }
+
     const userId = req.user.id;
     const syntheticTrainId = new mongoose.Types.ObjectId();
     const seatPayload = selectedSeats.map((seat) => ({
@@ -117,6 +130,25 @@ exports.completeLegacyPayment = async (req, res, next) => {
       classType: selectedTrain.type || 'standard',
       basePrice: Math.round((totalPrice || 0) / Math.max(selectedSeats.length, 1))
     }));
+
+    const passengerPayload = passengers.map((p) => {
+      const fullName = String(p.name || p.fullName || 'Hanh khach').trim();
+      const phoneRaw = String(p.phone || '').trim();
+      const nationalIdRaw = String(p.idCard || p.nationalId || '').trim();
+
+      if (!phoneRaw || !nationalIdRaw) {
+        throw Object.assign(new Error('Thieu so dien thoai hoac CCCD/CMND cua hanh khach'), { status: 400 });
+      }
+
+      return {
+        fullName,
+        phoneEncrypted: encryptText(phoneRaw),
+        phoneMasked: maskPhone(phoneRaw),
+        nationalIdEncrypted: encryptText(nationalIdRaw),
+        nationalIdMasked: maskNationalId(nationalIdRaw),
+        email: p.email || ''
+      };
+    });
 
     const order = await Order.create({
       orderCode: generateCode('OD'),
@@ -132,14 +164,7 @@ exports.completeLegacyPayment = async (req, res, next) => {
         durationText: selectedTrain.dur || selectedTrain.durationText || ''
       },
       selectedSeats: seatPayload,
-      passengers: (passengers || []).map((p) => ({
-        fullName: p.name || p.fullName || 'Hanh khach',
-        phoneEncrypted: { iv: '', content: '', tag: '' },
-        phoneMasked: p.phone || '',
-        nationalIdEncrypted: { iv: '', content: '', tag: '' },
-        nationalIdMasked: p.idCard || p.nationalId || '',
-        email: p.email || ''
-      })),
+      passengers: passengerPayload,
       pricing: {
         subtotal: totalPrice || 0,
         serviceFee: serviceFee || 0,
@@ -162,7 +187,7 @@ exports.completeLegacyPayment = async (req, res, next) => {
     const tickets = [];
     for (let i = 0; i < seatPayload.length; i += 1) {
       const seat = seatPayload[i];
-      const passenger = passengers?.[i] || passengers?.[0] || {};
+      const passenger = passengerPayload[i] || passengerPayload[0] || {};
       const ticket = await Ticket.create({
         ticketCode: generateCode('TK'),
         orderId: order._id,
@@ -170,9 +195,9 @@ exports.completeLegacyPayment = async (req, res, next) => {
         trainSnapshot: order.trainSnapshot,
         seatSnapshot: seat,
         passengerSnapshot: {
-          fullName: passenger.name || passenger.fullName || 'Hanh khach',
-          phoneMasked: passenger.phone || '',
-          nationalIdMasked: passenger.idCard || passenger.nationalId || ''
+          fullName: passenger.fullName || 'Hanh khach',
+          phoneMasked: passenger.phoneMasked || '',
+          nationalIdMasked: passenger.nationalIdMasked || ''
         },
         ticketStatus: 'issued'
       });

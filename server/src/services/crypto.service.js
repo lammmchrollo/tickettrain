@@ -1,11 +1,11 @@
 const crypto = require('crypto');
 const { DATA_ENCRYPTION_KEY } = require('../config/env');
 
-if (!DATA_ENCRYPTION_KEY || DATA_ENCRYPTION_KEY.length !== 64) {
-  console.warn('DATA_ENCRYPTION_KEY must be 64 hex chars');
+if (!DATA_ENCRYPTION_KEY || !/^[a-fA-F0-9]{64}$/.test(DATA_ENCRYPTION_KEY)) {
+  throw new Error('DATA_ENCRYPTION_KEY must be exactly 64 hex characters');
 }
 
-const KEY = Buffer.from(DATA_ENCRYPTION_KEY || '0'.repeat(64), 'hex');
+const KEY = Buffer.from(DATA_ENCRYPTION_KEY, 'hex');
 
 function encryptText(plainText) {
   const iv = crypto.randomBytes(12);
