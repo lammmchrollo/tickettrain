@@ -1,5 +1,12 @@
 const Seat = require('../models/seat.model');
 const SeatHold = require('../models/seatHold.model');
+let io;
+try {
+  const socketModule = require('../socket');
+  io = socketModule.getIO;
+} catch (e) {
+  io = null;
+}
 
 exports.holdSeats = async (req, res, next) => {
   try {
@@ -42,6 +49,21 @@ exports.holdSeats = async (req, res, next) => {
       status: 'active',
       expiresAt
     });
+
+    // Broadcast to connected clients in the train room that these seats are held
+    try {
+      if (io) {
+        const theIO = io();
+        theIO.to(`train_${trainId}`).emit('seat:hold', {
+          seatIds,
+          holdId: hold._id,
+          expiresAt: hold.expiresAt
+        });
+      }
+    } catch (err) {
+      // non-fatal — continue
+      console.warn('Socket emit failed:', err.message);
+    }
 
     res.json({
       success: true,

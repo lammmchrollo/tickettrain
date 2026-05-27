@@ -33,6 +33,16 @@ async function issueTicketsForOrder(order) {
 
   if (order.holdId) {
     await SeatHold.findByIdAndUpdate(order.holdId, { status: 'converted' });
+    try {
+      const { getIO } = require('../socket');
+      const io = getIO();
+      io.to(`train_${order.trainId}`).emit('seat:reserved', {
+        seatIds: order.selectedSeats.map((s) => s.seatId),
+        orderId: order._id
+      });
+    } catch (err) {
+      // non-fatal
+    }
   }
 
   await Order.findByIdAndUpdate(order._id, {
