@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Preferences } from '@capacitor/preferences';
+import { App as CapacitorApp } from '@capacitor/app';
 import axios from 'axios';
 import { authApi } from './api/auth.api';
 import { paymentApi } from './api/payment.api';
@@ -1528,6 +1529,8 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
   const [promo, setPromo] = useState('');
   const [discount, setDiscount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [lastCheckoutUrl, setLastCheckoutUrl] = useState('');
+  const [lastCheckoutData, setLastCheckoutData] = useState(null);
   const [toast, showToast] = useToast();
 
   const svc = Math.round(totalPrice * 0.02);
@@ -1535,7 +1538,6 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
 
   const methods = [
     { id:'vnpay', name:'VNPay', icon:'💳', desc:'Thanh toán qua VNPay' },
-    { id:'momo', name:'MoMo', icon:'📱', desc:'Ví điện tử MoMo' },
     { id:'wallet', name:'Ví nội bộ', icon:'💰', desc:'Số dư: 2.500.000đ' },
   ];
 
@@ -1547,25 +1549,57 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
   const pay = async () => {
     try {
       setLoading(true);
-      const res = await paymentApi.completeLegacy({
-        selectedTrain,
-        searchData,
-        selectedSeats,
-        passengers,
-        totalPrice,
-        serviceFee: svc,
-        discount,
-        finalTotal: final
-      });
+      if (method === 'vnpay') {
+        const res = await paymentApi.create({
+          provider: method,
+          selectedTrain,
+          searchData,
+          selectedSeats,
+          passengers,
+          totalPrice,
+          serviceFee: svc,
+          discount,
+          finalTotal: final
+        });
 
-      navigate('paymentSuccess', {
-        selectedSeats,
-        passengers,
-        finalTotal: res.data?.data?.finalTotal || final,
-        carriage,
-        selectedTrain,
-        tickets: res.data?.data?.tickets || []
-      });
+        const checkoutUrl = res.data?.data?.checkoutUrl;
+        setLastCheckoutData(res.data?.data || null);
+        console.log('[payment] vnpay checkoutUrl', checkoutUrl);
+        setLastCheckoutUrl(checkoutUrl || '');
+        if (!checkoutUrl) throw new Error('Khong the khoi tao giao dich thanh toan');
+        showToast('Da tao URL thanh toan', 'info');
+
+        // open checkout url
+        try {
+          if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser) {
+            await window.Capacitor.Plugins.Browser.open({ url: checkoutUrl });
+          } else {
+            window.open(checkoutUrl, '_blank');
+          }
+        } catch (e) {
+          window.open(checkoutUrl, '_blank');
+        }
+      } else {
+        const res = await paymentApi.completeLegacy({
+          selectedTrain,
+          searchData,
+          selectedSeats,
+          passengers,
+          totalPrice,
+          serviceFee: svc,
+          discount,
+          finalTotal: final
+        });
+
+        navigate('paymentSuccess', {
+          selectedSeats,
+          passengers,
+          finalTotal: res.data?.data?.finalTotal || final,
+          carriage,
+          selectedTrain,
+          tickets: res.data?.data?.tickets || []
+        });
+      }
     } catch (error) {
       showToast(error.message || 'Thanh toán thất bại. Vui lòng thử lại!', 'error');
     } finally {
@@ -1632,6 +1666,20 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
           <AlertCircle size={18} style={{ flexShrink:0 }}/>
           <span><strong>Lưu ý:</strong> Sau khi thanh toán thành công, vé điện tử sẽ được gửi đến email và hiển thị trong mục "Vé của tôi".</span>
         </div>
+
+        {lastCheckoutUrl && (
+          <div style={{ marginTop:12, background:'#f8fafc', border:'1px dashed #cbd5f5', borderRadius:10, padding:10, fontSize:12, color:'#334155', wordBreak:'break-all' }}>
+            <div style={{ fontWeight:700, marginBottom:6 }}>VNPay URL (debug)</div>
+            <div>{lastCheckoutUrl}</div>
+          </div>
+        )}
+
+        {lastCheckoutData && (
+          <div style={{ marginTop:12, background:'#f8fafc', border:'1px dashed #cbd5f5', borderRadius:10, padding:10, fontSize:12, color:'#334155', wordBreak:'break-all' }}>
+            <div style={{ fontWeight:700, marginBottom:6 }}>Checkout data (debug)</div>
+            <div>{JSON.stringify(lastCheckoutData)}</div>
+          </div>
+        )}
       </div>
 
       <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:430, background:'white', borderTop:'1px solid #e5e7eb', padding:'16px 20px' }}>
@@ -2137,6 +2185,85 @@ export default function App() {
 
   const mainTabs = ['home','search','myTickets','notifications','profile'];
   const showNav = mainTabs.includes(screen);
+
+  const handlePaymentReturn = async (url) => {
+    if (!url) return;
+    console.log('[deeplink] received url:', url);
+    let parsed = null;
+    try {
+      parsed = new URL(url);
+    } catch (e) {
+      console.warn('[deeplink] invalid url');
+      return;
+    }
+
+    const path = parsed.pathname || '';
+    const isPaymentReturn = path.includes('payment-result') || path.includes('payment-success') || path.includes('payment-return');
+    if (!isPaymentReturn) return;
+
+    const status = parsed.searchParams.get('status');
+    const orderId = parsed.searchParams.get('orderId');
+    console.log('[deeplink] parsed', { status, orderId });
+
+    if (status !== 'success') {
+      navigate('home');
+      return;
+    }
+
+    if (!orderId) {
+      navigate('myTickets');
+      return;
+    }
+
+    try {
+      const res = await ticketApi.myTickets();
+      const all = res.data?.data || [];
+      const related = all.filter((t) => String(t.orderId) === String(orderId));
+      if (!related.length) {
+        navigate('myTickets');
+        return;
+      }
+
+      const selectedSeats = related.map((t) => t.seatSnapshot?.seatNumber).filter(Boolean);
+      const passengers = related.map((t) => ({ fullName: t.passengerSnapshot?.fullName || 'Hanh khach' }));
+      const finalTotal = related.reduce((sum, t) => sum + (t.seatSnapshot?.basePrice || 0), 0);
+
+      navigate('paymentSuccess', {
+        tickets: related,
+        selectedSeats,
+        passengers,
+        finalTotal
+      });
+    } catch (error) {
+      navigate('myTickets');
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location?.href) {
+      handlePaymentReturn(window.location.href);
+    }
+
+    let remove = null;
+    if (CapacitorApp?.addListener) {
+      CapacitorApp.addListener('appUrlOpen', (event) => {
+        handlePaymentReturn(event?.url);
+        try {
+          if (window.Capacitor?.Plugins?.Browser?.close) {
+            window.Capacitor.Plugins.Browser.close();
+          }
+        } catch (e) {
+          // ignore
+        }
+      }).then((handle) => {
+        remove = handle;
+      });
+    }
+
+    return () => {
+      if (remove?.remove) remove.remove();
+    };
+  }, []);
 
   const renderScreen = () => {
     const p = { navigate, back, user, setUser, tickets, ...data };

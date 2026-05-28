@@ -3,6 +3,7 @@ const Payment = require('../models/payment.model');
 const Ticket = require('../models/ticket.model');
 const mongoose = require('mongoose');
 const { mockProviderCreatePayment } = require('../services/payment.service');
+const { createVnPay, verifyVnPaySignature } = require('../services/vnpay.service');
 const { issueTicketsForOrder } = require('../services/ticket.service');
 const { generateCode } = require('../utils/generateCode');
 const { encryptText } = require('../services/crypto.service');
@@ -10,42 +11,125 @@ const { maskPhone, maskNationalId } = require('../utils/mask');
 
 exports.createPayment = async (req, res, next) => {
   try {
-    const { orderId } = req.body;
+    const { provider, orderId } = req.body;
+    const isDemo = String(process.env.PAYMENT_DEMO || '').toLowerCase() === 'true';
 
-    const order = await Order.findOne({
-      _id: orderId,
-      userId: req.user.id
-    });
+    let order = null;
 
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Khong tim thay don hang' });
+    if (orderId) {
+      order = await Order.findOne({ _id: orderId, userId: req.user.id });
+      if (!order) return res.status(404).json({ success: false, message: 'Khong tim thay don hang' });
+      if (order.orderStatus !== 'pending_payment') return res.status(400).json({ success: false, message: 'Don hang khong o trang thai cho thanh toan' });
+    } else {
+      // create an order from provided payload (legacy compatible)
+      const {
+        selectedTrain,
+        searchData,
+        selectedSeats,
+        passengers,
+        totalPrice,
+        serviceFee,
+        discount,
+        finalTotal
+      } = req.body;
+
+      if (!selectedTrain || !Array.isArray(selectedSeats) || !selectedSeats.length) {
+        return res.status(400).json({ success: false, message: 'Thieu thong tin chuyen tau hoac ghe' });
+      }
+
+      if (!Array.isArray(passengers) || !passengers.length) {
+        return res.status(400).json({ success: false, message: 'Thieu thong tin hanh khach' });
+      }
+
+      const userId = req.user.id;
+      const syntheticTrainId = new mongoose.Types.ObjectId();
+      const seatPayload = selectedSeats.map((seat) => ({
+        seatNumber: String(seat),
+        classType: selectedTrain.type || 'standard',
+        basePrice: Math.round((totalPrice || 0) / Math.max(selectedSeats.length, 1))
+      }));
+
+      const passengerPayload = passengers.map((p) => {
+        const fullName = String(p.name || p.fullName || 'Hanh khach').trim();
+        const phoneRaw = String(p.phone || '').trim();
+        const nationalIdRaw = String(p.idCard || p.nationalId || '').trim();
+
+        if (!phoneRaw || !nationalIdRaw) {
+          throw Object.assign(new Error('Thieu so dien thoai hoac CCCD/CMND cua hanh khach'), { status: 400 });
+        }
+
+        return {
+          fullName,
+          phoneEncrypted: encryptText(phoneRaw),
+          phoneMasked: maskPhone(phoneRaw),
+          nationalIdEncrypted: encryptText(nationalIdRaw),
+          nationalIdMasked: maskNationalId(nationalIdRaw),
+          email: p.email || ''
+        };
+      });
+
+      order = await Order.create({
+        orderCode: generateCode('OD'),
+        userId,
+        trainId: syntheticTrainId,
+        trainSnapshot: {
+          trainCode: selectedTrain.name || selectedTrain.trainCode || 'SE',
+          trainName: selectedTrain.name || selectedTrain.trainName || 'Tau',
+          fromStationCode: searchData?.from || '',
+          toStationCode: searchData?.to || '',
+          departureTime: selectedTrain.dep || selectedTrain.departureTime || '',
+          arrivalTime: selectedTrain.arr || selectedTrain.arrivalTime || '',
+          durationText: selectedTrain.dur || selectedTrain.durationText || ''
+        },
+        selectedSeats: seatPayload,
+        passengers: passengerPayload,
+        pricing: {
+          subtotal: totalPrice || 0,
+          serviceFee: serviceFee || 0,
+          discount: discount || 0,
+          total: finalTotal || totalPrice || 0
+        },
+        paymentStatus: 'pending',
+        orderStatus: 'pending_payment'
+      });
     }
 
-    if (order.orderStatus !== 'pending_payment') {
-      return res.status(400).json({ success: false, message: 'Don hang khong o trang thai cho thanh toan' });
-    }
+    // create payment record
+    const amount = order.pricing.total;
+    let providerData = null;
 
-    const providerData = await mockProviderCreatePayment({
-      orderId: order._id,
-      amount: order.pricing.total
-    });
+    if (provider === 'vnpay') {
+      const returnUrl = process.env.VNPAY_RETURN_URL || `${req.protocol}://${req.get('host')}/api/payments/vnpay-return`;
+      const forwarded = (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim();
+      let ipAddr = forwarded || req.socket?.remoteAddress || '127.0.0.1';
+      if (ipAddr.includes(':')) {
+        // Normalize IPv6/IPv4-mapped IPv6 to IPv4 for VNPay format
+        const lastPart = ipAddr.split(':').pop();
+        ipAddr = lastPart || '127.0.0.1';
+      }
+      providerData = await createVnPay({ orderId: order._id, amount, returnUrl, ipAddr });
+    } else {
+      providerData = await mockProviderCreatePayment({ orderId: order._id, amount });
+    }
 
     const payment = await Payment.create({
       orderId: order._id,
       provider: providerData.provider,
       providerTxnId: providerData.providerTxnId,
       amount: providerData.amount,
-      status: 'pending'
+      status: 'pending',
+      checkoutUrl: providerData.checkoutUrl || null
     });
 
-    res.json({
-      success: true,
-      data: {
-        paymentId: payment._id,
-        providerTxnId: payment.providerTxnId,
-        amount: payment.amount
-      }
-    });
+    console.log('[vnpay] checkoutUrl', payment.checkoutUrl);
+
+    if (isDemo) {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      payment.checkoutUrl = `${baseUrl}/api/payments/mock-checkout?paymentId=${payment._id}`;
+      await payment.save();
+    }
+
+    res.json({ success: true, data: { paymentId: payment._id, checkoutUrl: payment.checkoutUrl, provider: payment.provider } });
   } catch (error) {
     next(error);
   }
@@ -215,5 +299,132 @@ exports.completeLegacyPayment = async (req, res, next) => {
     });
   } catch (error) {
     return next(error);
+  }
+};
+
+exports.vnpayReturn = async (req, res, next) => {
+  try {
+    const query = req.query || {};
+    const ok = verifyVnPaySignature(query);
+    const txnRef = query.vnp_TxnRef;
+    const clientUrl = process.env.CLIENT_RETURN_URL || '/';
+    const appendQuery = (base, params) => {
+      const hasQuery = base.includes('?');
+      const queryStr = Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== null && v !== '')
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .join('&');
+      return `${base}${hasQuery ? '&' : '?'}${queryStr}`;
+    };
+
+    if (!ok) {
+      return res.redirect(appendQuery(clientUrl, { status: 'failed', provider: 'vnpay' }));
+    }
+
+    const payment = await Payment.findOne({ providerTxnId: txnRef, provider: 'vnpay' });
+    if (!payment) return res.redirect(appendQuery(clientUrl, { status: 'failed', provider: 'vnpay' }));
+
+    if (payment.status !== 'success') {
+      payment.status = 'success';
+      payment.paidAt = new Date();
+      await payment.save();
+
+      const order = await Order.findById(payment.orderId);
+      if (order) {
+        order.paymentStatus = 'paid';
+        order.orderStatus = 'paid';
+        await order.save();
+        await issueTicketsForOrder(order);
+      }
+    }
+
+    // redirect to client success page if configured
+    return res.redirect(appendQuery(clientUrl, { status: 'success', provider: 'vnpay', orderId: payment.orderId }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+const settlePaymentAndRedirect = async ({ payment, status, res }) => {
+  const clientUrl = process.env.CLIENT_RETURN_URL || '/';
+  const appendQuery = (base, params) => {
+    const hasQuery = base.includes('?');
+    const queryStr = Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+      .join('&');
+    return `${base}${hasQuery ? '&' : '?'}${queryStr}`;
+  };
+
+  if (!payment) {
+    return res.redirect(appendQuery(clientUrl, { status: 'failed', provider: 'mock' }));
+  }
+
+  if (status === 'success' && payment.status !== 'success') {
+    payment.status = 'success';
+    payment.paidAt = new Date();
+    await payment.save();
+
+    const order = await Order.findById(payment.orderId);
+    if (order) {
+      order.paymentStatus = 'paid';
+      order.orderStatus = 'paid';
+      await order.save();
+      await issueTicketsForOrder(order);
+    }
+  }
+
+  return res.redirect(appendQuery(clientUrl, { status, provider: payment.provider, orderId: payment.orderId }));
+};
+
+exports.mockCheckoutPage = async (req, res, next) => {
+  try {
+    const { paymentId } = req.query;
+    const payment = await Payment.findById(paymentId);
+    if (!payment) return res.status(404).send('Payment not found');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mock Checkout</title>
+  <style>
+    body{font-family:Arial, sans-serif; background:#f6f7fb; padding:24px;}
+    .card{max-width:420px;margin:0 auto;background:#fff;border-radius:12px;padding:20px;box-shadow:0 6px 18px rgba(0,0,0,0.08)}
+    .row{display:flex;justify-content:space-between;margin:8px 0}
+    .btn{width:100%;padding:12px;border:none;border-radius:10px;font-weight:700;cursor:pointer}
+    .success{background:#22c55e;color:#fff}
+    .fail{background:#ef4444;color:#fff;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h3>Mock Checkout (${payment.provider})</h3>
+    <div class="row"><span>Payment ID</span><span>${payment._id}</span></div>
+    <div class="row"><span>Order ID</span><span>${payment.orderId}</span></div>
+    <div class="row"><span>Amount</span><span>${payment.amount}</span></div>
+    <button class="btn success" onclick="location.href='/api/payments/mock-complete?paymentId=${payment._id}&status=success'">Pay Success</button>
+    <button class="btn fail" onclick="location.href='/api/payments/mock-complete?paymentId=${payment._id}&status=failed'">Pay Failed</button>
+  </div>
+</body>
+</html>`;
+
+    res.setHeader('content-type', 'text/html');
+    return res.send(html);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.mockCompletePayment = async (req, res, next) => {
+  try {
+    const { paymentId, status } = req.query;
+    const payment = await Payment.findById(paymentId);
+    const normalized = status === 'success' ? 'success' : 'failed';
+    return settlePaymentAndRedirect({ payment, status: normalized, res });
+  } catch (error) {
+    next(error);
   }
 };

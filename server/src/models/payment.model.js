@@ -6,6 +6,7 @@ const PaymentSchema = new mongoose.Schema(
     provider: { type: String, required: true, default: 'mockpay' },
     providerTxnId: { type: String, required: true },
     amount: { type: Number, required: true },
+    checkoutUrl: { type: String, default: null },
     status: {
       type: String,
       enum: ['initiated', 'pending', 'success', 'failed', 'cancelled'],
