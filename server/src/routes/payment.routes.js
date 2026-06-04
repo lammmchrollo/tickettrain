@@ -8,6 +8,8 @@ const {
 	momoReturn,
 	momoNotify,
 	mockCheckoutPage,
+    zaloPayReturn,    // ← thêm
+    zaloPayCallback,  // ← thêmthêm
 	mockCompletePayment
 } = require('../controllers/payment.controller');
 

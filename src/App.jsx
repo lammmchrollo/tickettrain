@@ -1544,8 +1544,9 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
   const final = totalPrice + svc - discount;
 
   const methods = [
-    { id:'momo', name:'MoMo', icon:'💳', desc:'Thanh toán qua MoMo' },
-    { id:'wallet', name:'Ví nội bộ', icon:'💰', desc:'Số dư: 2.500.000đ' },
+    { id:'momo',     name:'MoMo',      icon:'💳', desc:'Thanh toán qua MoMo' },
+    { id:'zalopay',  name:'ZaloPay',   icon:'🔵', desc:'Thanh toán qua ZaloPay' },
+    { id:'wallet',   name:'Ví nội bộ', icon:'💰', desc:'Số dư: 2.500.000đ' },
   ];
 
   const applyPromo = () => {
@@ -1556,7 +1557,7 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
   const pay = async () => {
     try {
       setLoading(true);
-      if (method === 'momo') {
+      if (method === 'momo' || method === 'zalopay') {
         const res = await paymentApi.create({
           provider: method,
           selectedTrain,
@@ -1571,10 +1572,10 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
 
         const checkoutUrl = res.data?.data?.checkoutUrl;
         setLastCheckoutData(res.data?.data || null);
-        console.log('[payment] momo checkoutUrl', checkoutUrl);
+        console.log('[payment] checkoutUrl', checkoutUrl);
         setLastCheckoutUrl(checkoutUrl || '');
         if (!checkoutUrl) throw new Error('Khong the khoi tao giao dich thanh toan');
-        showToast('Da tao URL thanh toan', 'info');
+        showToast('Đang chuyển đến trang thanh toán...', 'info');
 
         // open checkout url
         try {
@@ -1677,7 +1678,7 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
 
         {lastCheckoutUrl && (
           <div style={{ marginTop:12, background:'#f8fafc', border:'1px dashed #cbd5f5', borderRadius:10, padding:10, fontSize:12, color:'#334155', wordBreak:'break-all' }}>
-            <div style={{ fontWeight:700, marginBottom:6 }}>MoMo URL (debug)</div>
+            <div style={{ fontWeight:700, marginBottom:6 }}>Checkout URL (debug)</div>
             <div>{lastCheckoutUrl}</div>
           </div>
         )}

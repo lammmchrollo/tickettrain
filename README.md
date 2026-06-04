@@ -1,244 +1,463 @@
-# Ve tau Bac Nam (VetaU)
+# 🚂 Vé Tàu Bắc Nam (VetaU)
 
-Ung dung dat ve tau Bac Nam gom frontend (React + Vite + Capacitor) va backend (Node.js + Express + MongoDB). Ho tro hai vai tro nguoi dung: admin va khach mua ve. Admin co quyen quan ly chu chuyen va tao chuyen tau; nguoi dung thuong chi dat ve.
+> Ứng dụng đặt vé tàu Bắc Nam gồm **Frontend** (React + Vite + Capacitor) và **Backend** (Node.js + Express + MongoDB).
+> Hỗ trợ hai vai trò người dùng: **Admin** (quản lý chủ chuyến, tạo/duyệt/huỷ chuyến tàu) và **Khách mua vé** (tìm kiếm, đặt ghế, thanh toán).
 
-## Tinh nang chinh
+---
 
-- Dang ky, dang nhap, luu token tren thiet bi
-- Chon vai tro khi dang ky/dang nhap (admin, nguoi mua ve)
-- Tim kiem chuyen tau, dat ghe, quan ly ve
-- Admin: quan ly chu chuyen, tao/duyet/huy chuyen tau
-- Giao dien di dong, ho tro Capacitor Android
+## 📋 Mục lục
 
-## Cong nghe
+- [Tính năng chính](#-tính-năng-chính)
+- [Công nghệ sử dụng](#-công-nghệ-sử-dụng)
+- [Cấu trúc thư mục](#-cấu-trúc-thư-mục)
+- [Yêu cầu hệ thống](#-yêu-cầu-hệ-thống)
+- [Cài đặt và chạy](#-cài-đặt-và-chạy)
+- [Chạy trên Android](#-chạy-trên-android-capacitor)
+- [Tài khoản và vai trò](#-tài-khoản-và-vai-trò)
+- [API Endpoints](#-api-endpoints)
+- [Biến môi trường](#-biến-môi-trường)
+- [Báo cáo An ninh Thông tin](#-báo-cáo-an-ninh-thông-tin)
 
-- Frontend: React 19, Vite, Capacitor, Axios
-- Backend: Node.js, Express, Mongoose, JWT
-- Database: MongoDB
+---
 
-## Cau truc thu muc
+## ✨ Tính năng chính
 
-- src/: frontend app
-- server/: backend API
-- android/: du an Android tu Capacitor
+| Nhóm | Tính năng |
+|------|-----------|
+| **Xác thực** | Đăng ký / đăng nhập với OTP email, lưu token trên thiết bị (Capacitor Preferences) |
+| **Phân quyền** | Chọn vai trò khi đăng ký (admin / khách), middleware `requireRole` bảo vệ route admin |
+| **Tìm kiếm** | Tìm chuyến tàu theo ga đi – ga đến – ngày, xem sơ đồ ghế realtime |
+| **Đặt vé** | Giữ ghế tạm (hold), nhập thông tin hành khách, thanh toán (MoMo / ZaloPay / demo) |
+| **Quản lý vé** | Xem đơn hàng, vé điện tử, huỷ vé |
+| **Admin** | Quản lý chủ chuyến (owner), tạo / duyệt / huỷ chuyến tàu, xem danh sách đặt vé |
+| **Realtime** | Cập nhật trạng thái ghế qua Socket.IO |
+| **Bảo mật** | Mã hoá dữ liệu PII (AES-256-GCM), rate limit, helmet, CORS, error masking |
 
-## Yeu cau
+---
 
-- Node.js 18+ (khuyen nghi)
-- MongoDB (local hoac cloud)
-- Android Studio (neu build Android)
+## 🛠 Công nghệ sử dụng
 
-## Cai dat va chay local
+### Frontend
 
-### 1) Cai dat frontend
+| Thư viện | Phiên bản | Vai trò |
+|----------|-----------|---------|
+| React | 19.x | UI framework |
+| Vite | 8.x | Build tool |
+| Capacitor | 8.x | Native Android wrapper |
+| Axios | 1.x | HTTP client |
+| Lucide React | 1.x | Icon library |
+| Socket.IO Client | 4.x | Realtime (optional) |
+
+### Backend
+
+| Thư viện | Phiên bản | Vai trò |
+|----------|-----------|---------|
+| Express | 5.x | Web framework |
+| Mongoose | 9.x | MongoDB ODM |
+| JWT | 9.x | Xác thực token |
+| bcryptjs | 3.x | Băm mật khẩu |
+| Helmet | 8.x | HTTP security headers |
+| express-rate-limit | 7.x | Giới hạn request |
+| Nodemailer | 6.x | Gửi email OTP |
+| Socket.IO | 4.x | Realtime server |
+
+### Database
+
+- **MongoDB** (local hoặc MongoDB Atlas)
+
+---
+
+## 📁 Cấu trúc thư mục
+
+```
+vetau-app/
+├── src/                          # Frontend React
+│   ├── App.jsx                   # Component chính (routing, logic)
+│   ├── App.css                   # Stylesheet chính
+│   ├── main.jsx                  # Entry point
+│   ├── socketClient.js           # Socket.IO client setup
+│   ├── api/                      # API service layer
+│   ├── assets/                   # Tài nguyên tĩnh
+│   └── components/               # React components
+│       └── TrainSeatsRealtime.jsx # Sơ đồ ghế realtime
+│
+├── server/                       # Backend API
+│   ├── index.js                  # Server bootstrap
+│   ├── src/
+│   │   ├── app.js                # Express app (middleware, routes)
+│   │   ├── server.js             # HTTP + Socket.IO listener
+│   │   ├── socket.js             # Socket.IO event handlers
+│   │   ├── holdCleaner.js        # Tự động giải phóng ghế hết hạn hold
+│   │   ├── config/               # Cấu hình (env, DB)
+│   │   ├── controllers/          # Xử lý logic API
+│   │   │   ├── auth.controller.js
+│   │   │   ├── train.controller.js
+│   │   │   ├── seat.controller.js
+│   │   │   ├── order.controller.js
+│   │   │   ├── payment.controller.js
+│   │   │   ├── ticket.controller.js
+│   │   │   └── owner.controller.js
+│   │   ├── models/               # Mongoose schema
+│   │   │   ├── user.model.js
+│   │   │   ├── train.model.js
+│   │   │   ├── carriage.model.js
+│   │   │   ├── seat.model.js
+│   │   │   ├── seatHold.model.js
+│   │   │   ├── order.model.js
+│   │   │   ├── payment.model.js
+│   │   │   ├── ticket.model.js
+│   │   │   ├── station.model.js
+│   │   │   ├── owner.model.js
+│   │   │   ├── promotion.model.js
+│   │   │   └── pendingRegistration.model.js
+│   │   ├── routes/               # Express routes
+│   │   ├── middlewares/          # Auth & error middleware
+│   │   ├── services/            # Business logic
+│   │   │   ├── crypto.service.js    # Mã hoá AES-256-GCM
+│   │   │   ├── email.service.js     # Gửi email
+│   │   │   ├── momo.service.js      # Tích hợp MoMo
+│   │   │   ├── zalopay.service.js   # Tích hợp ZaloPay
+│   │   │   ├── payment.service.js   # Logic thanh toán
+│   │   │   ├── pricing.service.js   # Tính giá vé
+│   │   │   └── ticket.service.js    # Tạo vé điện tử
+│   │   ├── seeds/               # Dữ liệu mẫu
+│   │   └── utils/               # Tiện ích chung
+│   └── .env.example             # Mẫu biến môi trường
+│
+├── android/                      # Dự án Android (Capacitor)
+├── capacitor.config.json         # Cấu hình Capacitor
+├── vite.config.js                # Cấu hình Vite
+├── package.json                  # Dependencies frontend
+└── README.md
+```
+
+---
+
+## 💻 Yêu cầu hệ thống
+
+| Yêu cầu | Phiên bản |
+|----------|-----------|
+| Node.js | 18+ (khuyến nghị 20+) |
+| MongoDB | 6+ (local hoặc Atlas) |
+| npm | 9+ |
+| Android Studio | Mới nhất (nếu build Android) |
+
+---
+
+## 🚀 Cài đặt và chạy
+
+### 1. Clone dự án
+
+```bash
+git clone <repo-url>
+cd vetau-app
+```
+
+### 2. Cài đặt Frontend
 
 ```bash
 npm install
 ```
 
-Chay frontend dev:
-
-```bash
-npm run dev
-```
-
-### 2) Cai dat backend
+### 3. Cài đặt Backend
 
 ```bash
 cd server
 npm install
 ```
 
-Tao file .env trong server/:
+### 4. Cấu hình biến môi trường
+
+Tạo file `server/.env` từ mẫu:
 
 ```bash
-PORT=5000
-MONGO_URI=mongodb://localhost:27017/vetau
-JWT_SECRET=your_jwt_secret
-DATA_ENCRYPTION_KEY=64_hex_chars_key
-APP_ORIGIN=http://localhost:5173,http://localhost,capacitor://localhost
+cp server/.env.example server/.env
 ```
 
-Luu y quan trong:
+Chỉnh sửa các giá trị trong `server/.env` (xem mục [Biến môi trường](#-biến-môi-trường)).
 
-- DATA_ENCRYPTION_KEY bat buoc dung dinh dang 64 ky tu hex (32 bytes) de ma hoa du lieu nhay cam.
-- Neu key thieu hoac sai dinh dang, backend se dung ngay khi khoi dong de tranh ma hoa yeu.
+> ⚠️ **Quan trọng:** `DATA_ENCRYPTION_KEY` bắt buộc đúng 64 ký tự hex (32 bytes). Nếu sai định dạng, server sẽ **dừng ngay khi khởi động**.
 
-Chay backend:
+Tạo key nhanh:
 
 ```bash
-npm run dev
+# Linux / macOS
+openssl rand -hex 32
+
+# Windows (PowerShell)
+-join ((1..32) | ForEach-Object { '{0:x2}' -f (Get-Random -Maximum 256) })
 ```
 
-Neu muon seed du lieu mau:
+### 5. Seed dữ liệu mẫu (tuỳ chọn)
 
 ```bash
+cd server
 npm run seed
 ```
 
-## Chay Android (Capacitor)
+### 6. Chạy ứng dụng
 
-Tu thu muc goc:
+Mở **2 terminal**:
 
 ```bash
+# Terminal 1 — Backend
+cd server
+npm run dev
+# → http://localhost:5000
+
+# Terminal 2 — Frontend
+npm run dev
+# → http://localhost:5173
+```
+
+---
+
+## 📱 Chạy trên Android (Capacitor)
+
+```bash
+# Build frontend
 npm run build
+
+# Sync vào Android project
 npx cap sync android
+
+# Mở Android Studio
 npx cap open android
 ```
 
-Trong Android Studio, bam Run/Rebuild de cai APK.
+Trong Android Studio, bấm **Run** để cài APK lên emulator hoặc thiết bị thật.
 
-### Luu y ve API Base URL
+### Lưu ý về API Base URL
 
-App mac dinh goi API qua IP emulator: 10.0.2.2.
-Neu chay tren thiet bi that, cap nhat IP may tinh trong src/App.jsx (COMPUTER_IP) va doi API_BASE_URL sang COMPUTER_IP.
+| Môi trường | API URL |
+|------------|---------|
+| Emulator Android | `http://10.0.2.2:5000` (mặc định) |
+| Thiết bị thật | IP máy tính trong cùng mạng LAN |
 
-## Tai khoan va vai tro
+Nếu chạy trên thiết bị thật, cập nhật `COMPUTER_IP` trong `src/App.jsx` và đổi `API_BASE_URL` sang IP máy tính.
 
-- Khi dang ky/dang nhap se chon vai tro.
-- He thong se kiem tra vai tro trong DB, khong the doi role chi bang UI.
-- API admin duoc bao ve boi middleware requireRole('admin').
+---
+
+## 👤 Tài khoản và vai trò
+
+| Vai trò | Quyền hạn |
+|---------|-----------|
+| **Khách hàng** | Tìm chuyến, đặt vé, xem đơn hàng, xem vé điện tử |
+| **Admin** | Tất cả quyền khách hàng + quản lý chủ chuyến, tạo/duyệt/huỷ chuyến tàu |
+
+- Vai trò được chọn khi đăng ký và lưu trong database.
+- Route admin được bảo vệ bởi middleware `requireRole('admin')`.
+- Không thể đổi role chỉ bằng UI.
+
+---
+
+## 🔌 API Endpoints
+
+| Nhóm | Prefix | Rate Limit | Mô tả |
+|------|--------|------------|--------|
+| Health | `GET /api/health` | Chung | Kiểm tra server hoạt động |
+| Auth | `/api/auth` | 30 req/15 phút | Đăng ký, đăng nhập, OTP |
+| Trains | `/api/trains` | Chung | CRUD chuyến tàu |
+| Seats | `/api/seats` | Chung | Sơ đồ ghế, hold ghế |
+| Orders | `/api/orders` | Chung | Đơn hàng người dùng |
+| Payments | `/api/payments` | 60 req/15 phút | Tạo & xác nhận thanh toán |
+| Tickets | `/api/tickets` | Chung | Vé điện tử |
+| Owners | `/api/owners` | Chung | Quản lý chủ chuyến (admin) |
+
+> **Rate limit chung:** 300 request / 15 phút cho toàn bộ API.
+
+---
+
+## 🔧 Biến môi trường
+
+File `server/.env`:
+
+| Biến | Bắt buộc | Mô tả |
+|------|----------|--------|
+| `PORT` | ✅ | Port backend (mặc định: `5000`) |
+| `NODE_ENV` | ❌ | `development` hoặc `production` |
+| `MONGO_URI` | ✅ | Connection string MongoDB |
+| `JWT_SECRET` | ✅ | Secret key cho JWT |
+| `DATA_ENCRYPTION_KEY` | ✅ | 64 ký tự hex — dùng cho AES-256-GCM |
+| `APP_ORIGIN` | ✅ | Allowed origins cho CORS (phân cách bằng dấu `,`) |
+| `MOMO_PARTNER_CODE` | ❌ | Partner code MoMo |
+| `MOMO_ACCESS_KEY` | ❌ | Access key MoMo |
+| `MOMO_SECRET_KEY` | ❌ | Secret key MoMo |
+| `MOMO_ENDPOINT` | ❌ | MoMo API endpoint |
+| `MOMO_RETURN_URL` | ❌ | URL MoMo redirect sau thanh toán |
+| `MOMO_NOTIFY_URL` | ❌ | URL MoMo gọi webhook |
+| `CLIENT_RETURN_URL` | ❌ | Deep link trả về app (mặc định: `vetau://payment-result`) |
+| `PAYMENT_DEMO` | ❌ | `true` = chế độ demo thanh toán (không gọi gateway thật) |
+
+---
 
 ## Scripts nhanh
 
-Frontend:
+### Frontend
 
 ```bash
-npm run dev
-npm run build
-npm run lint
+npm run dev       # Chạy dev server (Vite)
+npm run build     # Build production
+npm run lint      # Kiểm tra code style
+npm run preview   # Preview bản build
 ```
 
-Backend:
+### Backend
 
 ```bash
 cd server
-npm run dev
-npm run seed
+npm run dev       # Chạy backend server
+npm run seed      # Seed dữ liệu mẫu
 ```
 
-## Bao cao mon An ninh thong tin (tom tat)
+---
 
-### Muc tieu
+## 🔐 Báo cáo An ninh Thông tin
 
-- Xay dung ung dung dat ve tau co phan quyen ro rang (admin, khach hang)
-- Dam bao tinh bao mat cho xac thuc, token va du lieu nhay cam
-- Giam rui ro truy cap trai phep va tan cong API
+### Mục tiêu
 
-### Mo hinh bao mat da ap dung
+- Xây dựng ứng dụng đặt vé tàu có phân quyền rõ ràng (admin, khách hàng).
+- Đảm bảo tính bảo mật cho xác thực, token và dữ liệu nhạy cảm.
+- Giảm rủi ro truy cập trái phép và tấn công API.
 
-- Xac thuc: JWT, luu token tren thiet bi (Capacitor Preferences)
-- Phan quyen: middleware requireRole('admin') bao ve route quan ly
-- Mat khau: bam bcryptjs, khong luu plain text
-- CORS va header bao mat (helmet, rate limit)
+### Mô hình bảo mật đã áp dụng
 
-### Cap nhat bao mat du lieu ca nhan va mua ve (P0)
-
-Noi dung duoi day la cac nang cap da duoc them de bao ve thong tin hanh khach va giao dich mua ve.
-
-1) Fail-fast khoa ma hoa du lieu nhay cam
-
-- Vi tri: server/src/services/crypto.service.js
-- Hoat dong:
-	- He thong kiem tra DATA_ENCRYPTION_KEY co dung 64 ky tu hex hay khong.
-	- Neu sai dinh dang, server throw error va khong cho chay.
-	- Neu hop le, key duoc nap vao AES-256-GCM de ma hoa/kiem tra toan ven.
-- Tac dung bao mat:
-	- Loai bo nguy co chay voi key fallback yeu.
-	- Dam bao phone/CCCD cua hanh khach luon duoc ma hoa bang key manh.
-
-2) Ma hoa thong tin hanh khach trong luong thanh toan legacy
-
-- Vi tri: server/src/controllers/payment.controller.js (ham completeLegacyPayment)
-- Hoat dong:
-	- Kiem tra dau vao passengers bat buoc co du lieu.
-	- Ma hoa phone va CCCD/CMND bang encryptText truoc khi luu order.
-	- Luu them truong mask (phoneMasked, nationalIdMasked) de hien thi an toan.
-	- Ticket snapshot chi luu du lieu mask, khong luu plain text nhay cam.
-- Tac dung bao mat:
-	- Giam ro ri du lieu PII khi truy van ve/don hang.
-	- Dong bo chuan bao mat giua luong cu va luong moi.
-
-3) Chan luong legacy trong production
-
-- Vi tri: server/src/controllers/payment.controller.js (ham completeLegacyPayment)
-- Hoat dong:
-	- Neu NODE_ENV=production, API tra 410 va thong bao luong legacy da ngung.
-	- Muc dich la tranh tiep tuc su dung duong xu ly cu trong moi truong that.
-- Tac dung bao mat:
-	- Giam be mat tan cong tu endpoint cu.
-	- Tranh tinh trang luong cu bo qua cac buoc bao mat moi.
-
-4) Loc du lieu tra ve cho API don hang
-
-- Vi tri: server/src/controllers/order.controller.js (ham getMyOrders)
-- Hoat dong:
-	- Thay vi tra toan bo document Order, API map qua ham sanitizeOrderForCustomer.
-	- Chi tra cac truong can hien thi: thong tin ve/chuyen, gia, trang thai, thong tin hanh khach da mask.
-	- Khong tra cac truong phoneEncrypted, nationalIdEncrypted cho client.
-- Tac dung bao mat:
-	- Han che lo du lieu nhay cam qua API response.
-	- Giam rui ro khi log client/traffic bi thu thap.
-
-5) Rate limit rieng cho auth va payment
-
-- Vi tri: server/src/app.js
-- Hoat dong:
-	- authLimiter ap cho /api/auth (gioi han chat hon de chong brute force OTP/login).
-	- paymentLimiter ap cho /api/payments (giam spam tao/xac nhan thanh toan).
-	- Van giu limiter tong toan app de chong abuse chung.
-- Tac dung bao mat:
-	- Giam kha nang tan cong do mat khau, spam OTP, spam thanh toan.
-	- Giu on dinh dich vu truoc luu luong xau.
-
-6) An thong tin loi noi bo o production
-
-- Vi tri: server/src/middlewares/error.middleware.js
-- Hoat dong:
-	- O production: tra message chung, khong expose err.message chi tiet.
-	- O development: van hien message de debug nhanh.
-- Tac dung bao mat:
-	- Tranh lo thong tin he thong, cau truc noi bo, stack hint cho attacker.
-
-### Luong du lieu nhay cam sau nang cap
-
-1. Nguoi dung nhap thong tin hanh khach (ho ten, phone, CCCD).
-2. Backend ma hoa phone/CCCD truoc khi ghi vao Order.
-3. He thong luu dong thoi ban mask de hien thi tren app va ticket.
-4. API danh sach don hang/ve chi tra du lieu mask can thiet.
-5. Rate limit va error hardening bao ve cac endpoint nhay cam (auth/payment).
-
-### Kiem tra nhanh sau khi cau hinh
-
-```bash
-# Vi du tao key 64 hex (Linux/macOS)
-openssl rand -hex 32
-
-# Chay backend
-cd server
-npm run dev
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      CLIENT (React App)                     │
+│  • JWT token lưu trên thiết bị (Capacitor Preferences)      │
+│  • Không lưu plain text dữ liệu nhạy cảm                   │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ HTTPS / HTTP
+┌──────────────────────────▼──────────────────────────────────┐
+│                    EXPRESS MIDDLEWARE STACK                   │
+│                                                              │
+│  ┌──────────┐ ┌──────────┐ ┌───────────────┐ ┌───────────┐ │
+│  │  Helmet   │ │   CORS   │ │  Rate Limit   │ │   Auth    │ │
+│  │ (headers) │ │ (origin) │ │ (auth/payment)│ │ (JWT+role)│ │
+│  └──────────┘ └──────────┘ └───────────────┘ └───────────┘ │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│                     BUSINESS LOGIC                           │
+│  • Mật khẩu: bcryptjs (không lưu plain text)                │
+│  • Dữ liệu PII: AES-256-GCM (phone, CCCD)                 │
+│  • Response: chỉ trả dữ liệu đã mask, không trả encrypted │
+│  • Error: ẩn chi tiết lỗi nội bộ ở production              │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│                       MONGODB                                │
+│  • Lưu encrypted fields (phoneEncrypted, nationalIdEncrypted)│
+│  • Lưu masked fields để hiển thị (phoneMasked, nationalId…) │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-Neu DATA_ENCRYPTION_KEY sai, server se bao loi ngay luc startup.
+### Các nâng cấp bảo mật dữ liệu cá nhân và mua vé (P0)
 
-### Kich ban rui ro va cach giam thieu
+#### 1. Fail-fast khoá mã hoá dữ liệu nhạy cảm
 
-- Truy cap admin tu tai khoan khach: bi chan boi requireRole
-- Gia mao token: JWT xac thuc bang secret va het han
-- Tan cong brute force: rate limit tren backend
+- **Vị trí:** `server/src/services/crypto.service.js`
+- **Hoạt động:**
+  - Hệ thống kiểm tra `DATA_ENCRYPTION_KEY` có đúng 64 ký tự hex hay không.
+  - Nếu sai định dạng → server **throw error** và không cho chạy.
+  - Nếu hợp lệ → key được nạp vào AES-256-GCM để mã hoá / kiểm tra toàn vẹn.
+- **Tác dụng:** Loại bỏ nguy cơ chạy với key fallback yếu. Đảm bảo phone/CCCD luôn được mã hoá bằng key mạnh.
 
-### Kiem thu
+#### 2. Mã hoá thông tin hành khách trong luồng thanh toán legacy
 
-- Kiem thu dang ky/dang nhap voi 2 vai tro
-- Kiem thu truy cap route admin bang tai khoan thuong
-- Kiem thu tu dong luu/restore token tren app
+- **Vị trí:** `server/src/controllers/payment.controller.js` (hàm `completeLegacyPayment`)
+- **Hoạt động:**
+  - Kiểm tra đầu vào passengers bắt buộc có dữ liệu.
+  - Mã hoá phone và CCCD/CMND bằng `encryptText` trước khi lưu order.
+  - Lưu thêm trường mask (`phoneMasked`, `nationalIdMasked`) để hiển thị an toàn.
+  - Ticket snapshot chỉ lưu dữ liệu mask, không lưu plain text nhạy cảm.
+- **Tác dụng:** Giảm rò rỉ dữ liệu PII khi truy vấn vé/đơn hàng. Đồng bộ chuẩn bảo mật giữa luồng cũ và luồng mới.
 
-### Han che va huong phat trien
+#### 3. Chặn luồng legacy trong production
 
-- Chua co co che cap role admin an toan (can invite code/seed admin)
-- Can them log audit va canh bao bat thuong
+- **Vị trí:** `server/src/controllers/payment.controller.js` (hàm `completeLegacyPayment`)
+- **Hoạt động:**
+  - Nếu `NODE_ENV=production` → API trả **410** và thông báo luồng legacy đã ngừng.
+  - Mục đích: tránh tiếp tục sử dụng đường xử lý cũ trong môi trường thật.
+- **Tác dụng:** Giảm bề mặt tấn công từ endpoint cũ. Tránh tình trạng luồng cũ bỏ qua các bước bảo mật mới.
 
-## Ghi chu
+#### 4. Lọc dữ liệu trả về cho API đơn hàng
 
-- Neu giao dien chua cap nhat sau khi build Android, thu xoa app tren emulator/thiet bi va cai lai.
-- Neu thay doi API, nho sync lai Capacitor.
+- **Vị trí:** `server/src/controllers/order.controller.js` (hàm `getMyOrders`)
+- **Hoạt động:**
+  - Thay vì trả toàn bộ document Order, API map qua hàm `sanitizeOrderForCustomer`.
+  - Chỉ trả các trường cần hiển thị: thông tin vé/chuyến, giá, trạng thái, thông tin hành khách đã mask.
+  - **Không trả** các trường `phoneEncrypted`, `nationalIdEncrypted` cho client.
+- **Tác dụng:** Hạn chế lộ dữ liệu nhạy cảm qua API response. Giảm rủi ro khi log client/traffic bị thu thập.
+
+#### 5. Rate limit riêng cho auth và payment
+
+- **Vị trí:** `server/src/app.js`
+- **Hoạt động:**
+  - `authLimiter` áp cho `/api/auth` — 30 req / 15 phút (chống brute force OTP/login).
+  - `paymentLimiter` áp cho `/api/payments` — 60 req / 15 phút (giảm spam tạo/xác nhận thanh toán).
+  - Vẫn giữ limiter tổng toàn app: 300 req / 15 phút.
+- **Tác dụng:** Giảm khả năng tấn công dò mật khẩu, spam OTP, spam thanh toán. Giữ ổn định dịch vụ trước lưu lượng xấu.
+
+#### 6. Ẩn thông tin lỗi nội bộ ở production
+
+- **Vị trí:** `server/src/middlewares/error.middleware.js`
+- **Hoạt động:**
+  - Ở production: trả message chung, không expose `err.message` chi tiết.
+  - Ở development: vẫn hiện message để debug nhanh.
+- **Tác dụng:** Tránh lộ thông tin hệ thống, cấu trúc nội bộ, stack hint cho attacker.
+
+### Luồng dữ liệu nhạy cảm sau nâng cấp
+
+```
+Người dùng nhập thông tin hành khách (họ tên, phone, CCCD)
+        │
+        ▼
+Backend mã hoá phone/CCCD trước khi ghi vào Order
+        │
+        ▼
+Hệ thống lưu đồng thời bản mask để hiển thị trên app và ticket
+        │
+        ▼
+API danh sách đơn hàng/vé chỉ trả dữ liệu mask cần thiết
+        │
+        ▼
+Rate limit và error hardening bảo vệ các endpoint nhạy cảm
+```
+
+### Kịch bản rủi ro và cách giảm thiểu
+
+| Kịch bản | Biện pháp |
+|----------|-----------|
+| Truy cập admin từ tài khoản khách | Bị chặn bởi `requireRole('admin')` |
+| Giả mạo token | JWT xác thực bằng secret và hết hạn |
+| Tấn công brute force | Rate limit trên auth endpoint (30 req/15 phút) |
+| Rò rỉ dữ liệu PII qua API | Response chỉ trả dữ liệu đã mask |
+| Key mã hoá yếu / thiếu | Server dừng ngay nếu key không hợp lệ |
+| Spam thanh toán | Rate limit riêng trên payment endpoint |
+| Lộ thông tin lỗi hệ thống | Error masking ở production |
+
+### Kiểm thử
+
+- [x] Đăng ký / đăng nhập với 2 vai trò
+- [x] Truy cập route admin bằng tài khoản thường → bị từ chối
+- [x] Tự động lưu / restore token trên app
+- [x] Server dừng khi `DATA_ENCRYPTION_KEY` sai định dạng
+- [x] API đơn hàng không trả dữ liệu encrypted
+- [x] Rate limit chặn request vượt ngưỡng
+
+### Hạn chế và hướng phát triển
+
+- Chưa có cơ chế cấp role admin an toàn (cần invite code / seed admin).
+- Cần thêm log audit và cảnh báo bất thường.
+- Chưa có HTTPS enforcement (cần cấu hình reverse proxy cho production).
+- Có thể thêm 2FA cho tài khoản admin.
+
+---
+
+## 📝 Ghi chú
+
+- Nếu giao diện chưa cập nhật sau khi build Android, thử xoá app trên emulator/thiết bị và cài lại.
+- Nếu thay đổi API, nhớ sync lại Capacitor: `npx cap sync android`.
+- Health check: `GET /api/health` → `{ success: true, message: "Server OK" }`.
