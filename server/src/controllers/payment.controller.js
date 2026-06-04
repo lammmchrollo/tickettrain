@@ -3,7 +3,7 @@ const Payment = require('../models/payment.model');
 const Ticket = require('../models/ticket.model');
 const mongoose = require('mongoose');
 const { mockProviderCreatePayment } = require('../services/payment.service');
-const { createVnPay, verifyVnPaySignature } = require('../services/vnpay.service');
+const { createMoMo, verifyMoMoSignature } = require('../services/momo.service');
 const { issueTicketsForOrder } = require('../services/ticket.service');
 const { generateCode } = require('../utils/generateCode');
 const { encryptText } = require('../services/crypto.service');
@@ -98,16 +98,10 @@ exports.createPayment = async (req, res, next) => {
     const amount = order.pricing.total;
     let providerData = null;
 
-    if (provider === 'vnpay') {
-      const returnUrl = process.env.VNPAY_RETURN_URL || `${req.protocol}://${req.get('host')}/api/payments/vnpay-return`;
-      const forwarded = (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim();
-      let ipAddr = forwarded || req.socket?.remoteAddress || '127.0.0.1';
-      if (ipAddr.includes(':')) {
-        // Normalize IPv6/IPv4-mapped IPv6 to IPv4 for VNPay format
-        const lastPart = ipAddr.split(':').pop();
-        ipAddr = lastPart || '127.0.0.1';
-      }
-      providerData = await createVnPay({ orderId: order._id, amount, returnUrl, ipAddr });
+    if (provider === 'momo') {
+      const returnUrl = process.env.MOMO_RETURN_URL || `${req.protocol}://${req.get('host')}/api/payments/momo-return`;
+      const notifyUrl = process.env.MOMO_NOTIFY_URL || `${req.protocol}://${req.get('host')}/api/payments/momo-notify`;
+      providerData = await createMoMo({ orderId: order._id, amount, returnUrl, notifyUrl });
     } else {
       providerData = await mockProviderCreatePayment({ orderId: order._id, amount });
     }
@@ -121,7 +115,7 @@ exports.createPayment = async (req, res, next) => {
       checkoutUrl: providerData.checkoutUrl || null
     });
 
-    console.log('[vnpay] checkoutUrl', payment.checkoutUrl);
+    console.log('[payment] checkoutUrl', payment.checkoutUrl);
 
     if (isDemo) {
       const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -302,11 +296,9 @@ exports.completeLegacyPayment = async (req, res, next) => {
   }
 };
 
-exports.vnpayReturn = async (req, res, next) => {
+exports.momoReturn = async (req, res, next) => {
   try {
-    const query = req.query || {};
-    const ok = verifyVnPaySignature(query);
-    const txnRef = query.vnp_TxnRef;
+    const { orderId, resultCode } = req.query || {};
     const clientUrl = process.env.CLIENT_RETURN_URL || '/';
     const appendQuery = (base, params) => {
       const hasQuery = base.includes('?');
@@ -317,12 +309,14 @@ exports.vnpayReturn = async (req, res, next) => {
       return `${base}${hasQuery ? '&' : '?'}${queryStr}`;
     };
 
-    if (!ok) {
-      return res.redirect(appendQuery(clientUrl, { status: 'failed', provider: 'vnpay' }));
+    if (String(resultCode) !== '0') {
+      return res.redirect(appendQuery(clientUrl, { status: 'failed', provider: 'momo', orderId }));
     }
 
-    const payment = await Payment.findOne({ providerTxnId: txnRef, provider: 'vnpay' });
-    if (!payment) return res.redirect(appendQuery(clientUrl, { status: 'failed', provider: 'vnpay' }));
+    const payment = await Payment.findOne({ providerTxnId: orderId, provider: 'momo' });
+    if (!payment) {
+      return res.redirect(appendQuery(clientUrl, { status: 'failed', provider: 'momo', orderId }));
+    }
 
     if (payment.status !== 'success') {
       payment.status = 'success';
@@ -338,8 +332,38 @@ exports.vnpayReturn = async (req, res, next) => {
       }
     }
 
-    // redirect to client success page if configured
-    return res.redirect(appendQuery(clientUrl, { status: 'success', provider: 'vnpay', orderId: payment.orderId }));
+    return res.redirect(appendQuery(clientUrl, { status: 'success', provider: 'momo', orderId: payment.orderId }));
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.momoNotify = async (req, res, next) => {
+  try {
+    const ok = verifyMoMoSignature(req.body || {});
+    if (!ok) {
+      return res.status(400).json({ message: 'invalid signature' });
+    }
+
+    const { resultCode, orderId } = req.body || {};
+    if (String(resultCode) === '0') {
+      const payment = await Payment.findOne({ providerTxnId: orderId, provider: 'momo' });
+      if (payment && payment.status !== 'success') {
+        payment.status = 'success';
+        payment.paidAt = new Date();
+        await payment.save();
+
+        const order = await Order.findById(payment.orderId);
+        if (order) {
+          order.paymentStatus = 'paid';
+          order.orderStatus = 'paid';
+          await order.save();
+          await issueTicketsForOrder(order);
+        }
+      }
+    }
+
+    return res.status(200).json({ message: 'ok' });
   } catch (error) {
     next(error);
   }

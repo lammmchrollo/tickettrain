@@ -12,7 +12,7 @@ module.exports = {
   OTP_MAX_ATTEMPTS: process.env.OTP_MAX_ATTEMPTS || '5',
   OTP_RESEND_MAX_PER_HOUR: process.env.OTP_RESEND_MAX_PER_HOUR || '5',
   DATA_ENCRYPTION_KEY: process.env.DATA_ENCRYPTION_KEY,
-  APP_ORIGIN: process.env.APP_ORIGIN || 'http://localhost:5173,http://localhost,capacitor://localhost',
+  APP_ORIGIN: process.env.APP_ORIGIN || 'http://localhost:5173,http://localhost,https://localhost,capacitor://localhost',
   API_BASE_URL: process.env.API_BASE_URL || 'http://localhost:5000',
   SMTP_HOST: process.env.SMTP_HOST,
   SMTP_PORT: process.env.SMTP_PORT || '587',

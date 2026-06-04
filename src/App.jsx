@@ -21,7 +21,7 @@ import {
 const COMPUTER_IP = '192.168.0.101';
 const EMULATOR_IP = '10.0.2.2';
 
-const API_BASE_URL = `http://${EMULATOR_IP}:5000`;
+const API_BASE_URL = 'http://localhost:5000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -213,18 +213,25 @@ function SplashScreen({ navigate, setUser }) {
     const checkAuth = async () => {
       try {
         const { value: token } = await Preferences.get({ key: 'auth_token' });
-        const { value: userData } = await Preferences.get({ key: 'user_data' });
+        const { value: userDataStr } = await Preferences.get({ key: 'user_data' });
 
         // Giả lập delay để hiển thị thương hiệu
         setTimeout(() => {
-          if (token && userData) {
-            setUser(JSON.parse(userData));
-            navigate('home');
+          if (token && userDataStr) {
+            try {
+              const userData = JSON.parse(userDataStr);
+              setUser(userData);
+              navigate('home');
+            } catch (e) {
+              console.error('Lỗi parse user_data:', e);
+              navigate('login');
+            }
           } else {
             navigate('login');
           }
         }, 2500);
-      } catch {
+      } catch (err) {
+        console.error('Lỗi checkAuth:', err);
         setTimeout(() => navigate('login'), 2500);
       }
     };
@@ -1525,7 +1532,7 @@ function CreateTrainScreen({ navigate, back, ownerId: initialOwnerId=null, owner
 
 // ─── PaymentScreen ───────────────────────────────────────────────
 function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passengers=[], carriage, selectedTrain, searchData }) {
-  const [method, setMethod] = useState('vnpay');
+  const [method, setMethod] = useState('momo');
   const [promo, setPromo] = useState('');
   const [discount, setDiscount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -1537,7 +1544,7 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
   const final = totalPrice + svc - discount;
 
   const methods = [
-    { id:'vnpay', name:'VNPay', icon:'💳', desc:'Thanh toán qua VNPay' },
+    { id:'momo', name:'MoMo', icon:'💳', desc:'Thanh toán qua MoMo' },
     { id:'wallet', name:'Ví nội bộ', icon:'💰', desc:'Số dư: 2.500.000đ' },
   ];
 
@@ -1549,7 +1556,7 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
   const pay = async () => {
     try {
       setLoading(true);
-      if (method === 'vnpay') {
+      if (method === 'momo') {
         const res = await paymentApi.create({
           provider: method,
           selectedTrain,
@@ -1564,7 +1571,7 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
 
         const checkoutUrl = res.data?.data?.checkoutUrl;
         setLastCheckoutData(res.data?.data || null);
-        console.log('[payment] vnpay checkoutUrl', checkoutUrl);
+        console.log('[payment] momo checkoutUrl', checkoutUrl);
         setLastCheckoutUrl(checkoutUrl || '');
         if (!checkoutUrl) throw new Error('Khong the khoi tao giao dich thanh toan');
         showToast('Da tao URL thanh toan', 'info');
@@ -1601,7 +1608,8 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
         });
       }
     } catch (error) {
-      showToast(error.message || 'Thanh toán thất bại. Vui lòng thử lại!', 'error');
+      const backendMessage = error?.response?.data?.message;
+      showToast(backendMessage || error.message || 'Thanh toán thất bại. Vui lòng thử lại!', 'error');
     } finally {
       setLoading(false);
     }
@@ -1669,7 +1677,7 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
 
         {lastCheckoutUrl && (
           <div style={{ marginTop:12, background:'#f8fafc', border:'1px dashed #cbd5f5', borderRadius:10, padding:10, fontSize:12, color:'#334155', wordBreak:'break-all' }}>
-            <div style={{ fontWeight:700, marginBottom:6 }}>VNPay URL (debug)</div>
+            <div style={{ fontWeight:700, marginBottom:6 }}>MoMo URL (debug)</div>
             <div>{lastCheckoutUrl}</div>
           </div>
         )}

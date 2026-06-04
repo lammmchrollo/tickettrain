@@ -1,5 +1,8 @@
 module.exports = (err, req, res, next) => {
   console.error('Server error:', err.message);
+  if (err.meta) {
+    console.error('Server error meta:', err.meta);
+  }
 
   const isProd = process.env.NODE_ENV === 'production';
   const message = isProd

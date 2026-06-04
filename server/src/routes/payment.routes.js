@@ -4,16 +4,19 @@ const auth = require('../middlewares/auth.middleware');
 const {
 	createPayment,
 	confirmMockPayment,
-	completeLegacyPayment
+	completeLegacyPayment,
+	momoReturn,
+	momoNotify,
+	mockCheckoutPage,
+	mockCompletePayment
 } = require('../controllers/payment.controller');
 
 router.post('/create', auth, createPayment);
 router.post('/mock-confirm', auth, confirmMockPayment);
 router.post('/complete-legacy', auth, completeLegacyPayment);
 
-// return endpoints (VNPay)
-const { vnpayReturn, mockCheckoutPage, mockCompletePayment } = require('../controllers/payment.controller');
-router.get('/vnpay-return', vnpayReturn);
+router.get('/momo-return', momoReturn);
+router.post('/momo-notify', momoNotify);
 router.get('/mock-checkout', mockCheckoutPage);
 router.get('/mock-complete', mockCompletePayment);
 

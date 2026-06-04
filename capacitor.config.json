@@ -3,7 +3,7 @@
   "appName": "vetau-app",
   "webDir": "dist",
   "server": {
-    "androidScheme": "http",
+    "androidScheme": "https",
     "cleartext": true,
     "allowNavigation": ["10.0.2.2", "localhost"]
   }
