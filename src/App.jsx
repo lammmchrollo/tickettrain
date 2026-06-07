@@ -1540,8 +1540,8 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
   const [lastCheckoutData, setLastCheckoutData] = useState(null);
   const [toast, showToast] = useToast();
 
-  const svc = Math.round(totalPrice * 0.02);
-  const final = totalPrice + svc - discount;
+  const svc = 0;
+  const final = totalPrice - discount;
 
   const methods = [
     { id:'momo',     name:'MoMo',      icon:'💳', desc:'Thanh toán qua MoMo' },
@@ -1630,7 +1630,7 @@ function PaymentScreen({ navigate, back, selectedSeats=[], totalPrice=0, passeng
             </div>
           ))}
           <div style={{ borderTop:'1px solid #f3f4f6', paddingTop:12, marginTop:8 }}>
-            {[['Tiền vé', totalPrice],['Phí dịch vụ', svc]].map(([l,v])=>(
+            {[['Tiền vé', totalPrice]].map(([l,v])=>(
               <div key={l} style={{ display:'flex', justifyContent:'space-between', marginBottom:8, fontSize:14 }}>
                 <span style={{ color:'#6b7280' }}>{l}</span><span style={{ fontWeight:600 }}>{fmt(v)}</span>
               </div>

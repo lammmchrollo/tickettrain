@@ -1,7 +1,7 @@
 const Promotion = require('../models/promotion.model');
 
 function calculateServiceFee(subtotal) {
-  return Math.round(subtotal * 0.02);
+  return 0;
 }
 
 async function calculatePricing({ seats, promoCode }) {
@@ -34,7 +34,7 @@ async function calculatePricing({ seats, promoCode }) {
     }
   }
 
-  const total = Math.max(subtotal + serviceFee - discount, 0);
+  const total = Math.max(subtotal - discount, 0);
 
   return {
     subtotal,

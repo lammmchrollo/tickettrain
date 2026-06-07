@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { Preferences } from '@capacitor/preferences';
 
-// ─── Đổi URL ở đây khi ngrok thay đổi ───────────────────────────
+
 const API_BASE_URL = 'https://popper-ranger-rejoice.ngrok-free.dev/api';
-// ─────────────────────────────────────────────────────────────────
+
 
 const http = axios.create({
   baseURL: API_BASE_URL,
