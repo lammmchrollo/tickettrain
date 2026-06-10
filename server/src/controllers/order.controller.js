@@ -4,9 +4,23 @@ const SeatHold = require('../models/seatHold.model');
 const Order = require('../models/order.model');
 const { calculatePricing } = require('../services/pricing.service');
 const { encryptText } = require('../services/crypto.service');
-const { maskPhone, maskNationalId } = require('../utils/mask');
+const { maskPhone, maskNationalId, maskFullName, maskEmail } = require('../utils/mask');
 const { generateCode } = require('../utils/generateCode');
+const { logAudit } = require('../middlewares/audit.middleware');
 
+/**
+ * Sanitize order data trước khi trả về cho customer
+ * 
+ * Mục đích: loại bỏ tất cả trường encrypted khỏi response.
+ * Chỉ trả lại dữ liệu đã masked — đủ để hiển thị, không đủ để tái tạo PII.
+ * 
+ * Các trường bị loại bỏ:
+ * - phoneEncrypted, nationalIdEncrypted (đã có từ trước)
+ * - fullNameEncrypted, emailEncrypted (mới thêm)
+ * 
+ * Tham chiếu OWASP:
+ * - A01:2021 – Broken Access Control (data exposure)
+ */
 const sanitizeOrderForCustomer = (orderDoc) => {
   const order = orderDoc.toObject ? orderDoc.toObject() : orderDoc;
 
@@ -19,7 +33,7 @@ const sanitizeOrderForCustomer = (orderDoc) => {
       fullName: p.fullName,
       phoneMasked: p.phoneMasked,
       nationalIdMasked: p.nationalIdMasked,
-      email: p.email || ''
+      emailMasked: p.emailMasked || ''
     })),
     pricing: order.pricing,
     promotionSnapshot: order.promotionSnapshot,
@@ -71,14 +85,20 @@ exports.createOrder = async (req, res, next) => {
 
     const pricing = await calculatePricing({ seats, promoCode });
 
-    const passengerPayload = passengers.map((p) => ({
-      fullName: p.fullName,
-      phoneEncrypted: encryptText(p.phone),
-      phoneMasked: maskPhone(p.phone),
-      nationalIdEncrypted: encryptText(p.nationalId),
-      nationalIdMasked: maskNationalId(p.nationalId),
-      email: p.email || ''
-    }));
+    const passengerPayload = passengers.map((p) => {
+      const rawEmail = p.email || '';
+      return {
+        fullName: maskFullName(p.fullName),
+        fullNameEncrypted: encryptText(p.fullName),
+        phoneEncrypted: encryptText(p.phone),
+        phoneMasked: maskPhone(p.phone),
+        nationalIdEncrypted: encryptText(p.nationalId),
+        nationalIdMasked: maskNationalId(p.nationalId),
+        emailEncrypted: rawEmail ? encryptText(rawEmail) : undefined,
+        emailMasked: rawEmail ? maskEmail(rawEmail) : '',
+        email: rawEmail ? maskEmail(rawEmail) : ''
+      };
+    });
 
     const order = await Order.create({
       orderCode: generateCode('OD'),
@@ -106,6 +126,17 @@ exports.createOrder = async (req, res, next) => {
       paymentStatus: 'pending',
       orderStatus: 'pending_payment'
     });
+
+    // ── Audit Log: tạo đơn hàng ─────────────────────────────────
+    logAudit({
+      userId: req.user.id,
+      action: 'ORDER_CREATED',
+      resource: 'Order',
+      resourceId: order._id.toString(),
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: `Order ${order.orderCode} created. Total: ${order.pricing.total}`
+    }).catch(() => {});
 
     res.json({
       success: true,

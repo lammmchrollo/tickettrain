@@ -8,7 +8,8 @@ const { createZaloPay, verifyZaloPayCallback } = require('../services/zalopay.se
 const { issueTicketsForOrder } = require('../services/ticket.service');
 const { generateCode } = require('../utils/generateCode');
 const { encryptText } = require('../services/crypto.service');
-const { maskPhone, maskNationalId } = require('../utils/mask');
+const { maskPhone, maskNationalId, maskFullName, maskEmail } = require('../utils/mask');
+const { logAudit } = require('../middlewares/audit.middleware');
 
 // ─── Helper dùng chung ────────────────────────────────────────────────────────
 const appendQuery = (base, params) => {
@@ -85,6 +86,7 @@ exports.createPayment = async (req, res, next) => {
         const fullName      = String(p.name || p.fullName || 'Hanh khach').trim();
         const phoneRaw      = String(p.phone || '').trim();
         const nationalIdRaw = String(p.idCard || p.nationalId || '').trim();
+        const rawEmail      = String(p.email || '').trim();
 
         if (!phoneRaw || !nationalIdRaw)
           throw Object.assign(
@@ -93,12 +95,15 @@ exports.createPayment = async (req, res, next) => {
           );
 
         return {
-          fullName,
+          fullName:            maskFullName(fullName),
+          fullNameEncrypted:   encryptText(fullName),
           phoneEncrypted:      encryptText(phoneRaw),
           phoneMasked:         maskPhone(phoneRaw),
           nationalIdEncrypted: encryptText(nationalIdRaw),
           nationalIdMasked:    maskNationalId(nationalIdRaw),
-          email: p.email || ''
+          emailEncrypted:      rawEmail ? encryptText(rawEmail) : undefined,
+          emailMasked:         rawEmail ? maskEmail(rawEmail) : '',
+          email:               rawEmail ? maskEmail(rawEmail) : ''
         };
       });
 
@@ -245,6 +250,7 @@ exports.completeLegacyPayment = async (req, res, next) => {
       const fullName      = String(p.name || p.fullName || 'Hanh khach').trim();
       const phoneRaw      = String(p.phone || '').trim();
       const nationalIdRaw = String(p.idCard || p.nationalId || '').trim();
+      const rawEmail      = String(p.email || '').trim();
 
       if (!phoneRaw || !nationalIdRaw)
         throw Object.assign(
@@ -253,12 +259,15 @@ exports.completeLegacyPayment = async (req, res, next) => {
         );
 
       return {
-        fullName,
+        fullName:            maskFullName(fullName),
+        fullNameEncrypted:   encryptText(fullName),
         phoneEncrypted:      encryptText(phoneRaw),
         phoneMasked:         maskPhone(phoneRaw),
         nationalIdEncrypted: encryptText(nationalIdRaw),
         nationalIdMasked:    maskNationalId(nationalIdRaw),
-        email: p.email || ''
+        emailEncrypted:      rawEmail ? encryptText(rawEmail) : undefined,
+        emailMasked:         rawEmail ? maskEmail(rawEmail) : '',
+        email:               rawEmail ? maskEmail(rawEmail) : ''
       };
     });
 

@@ -11,11 +11,22 @@ const EncryptedValueSchema = new mongoose.Schema(
 
 const PassengerSchema = new mongoose.Schema(
   {
+    /**
+     * Tên hành khách — lưu bản viết tắt (masked) để hiển thị
+     * Bản gốc được mã hoá trong fullNameEncrypted
+     */
     fullName: { type: String, required: true },
+    fullNameEncrypted: { type: EncryptedValueSchema },
     phoneEncrypted: { type: EncryptedValueSchema, required: true },
     phoneMasked: { type: String, required: true },
     nationalIdEncrypted: { type: EncryptedValueSchema, required: true },
     nationalIdMasked: { type: String, required: true },
+    /**
+     * Email hành khách — mã hoá khi có giá trị
+     * emailMasked: bản hiển thị che bớt (u***@example.com)
+     */
+    emailEncrypted: { type: EncryptedValueSchema },
+    emailMasked: { type: String, default: '' },
     email: { type: String, default: '' }
   },
   { _id: false }

@@ -1,4 +1,5 @@
 const Ticket = require('../models/ticket.model');
+const { logAudit } = require('../middlewares/audit.middleware');
 
 exports.getMyTickets = async (req, res, next) => {
   try {
@@ -50,6 +51,17 @@ exports.cancelTicket = async (req, res, next) => {
 
     ticket.ticketStatus = 'cancelled';
     await ticket.save();
+
+    // ── Audit Log: huỷ vé ──────────────────────────────────────
+    logAudit({
+      userId: req.user.id,
+      action: 'TICKET_CANCELLED',
+      resource: 'Ticket',
+      resourceId: ticket._id.toString(),
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: `Ticket ${ticketCode} cancelled`
+    }).catch(() => {});
 
     return res.json({
       success: true,
