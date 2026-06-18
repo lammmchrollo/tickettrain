@@ -29,3 +29,11 @@ server/node_modules
 server/database.sqlite
 android/build
 android/app/build
+
+# Security reports, presentations, and scripts
+BaoCao_AnNinh_ThongTin_VetaU.md
+BaoCao_AnNinh_ThongTin_VetaU.docx
+DEMO_BAO_MAT.md
+slide-bao-cao.html
+README.md
+scripts/
